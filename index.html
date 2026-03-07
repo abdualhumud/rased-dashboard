@@ -1,0 +1,1547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rased V2 — Jira Intelligence Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+/* ===== RESET & BASE ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-primary: #0f0f1a;
+  --bg-secondary: #1a1a2e;
+  --bg-tertiary: #16213e;
+  --bg-card: #1a1a2e;
+  --bg-card-hover: #1f1f35;
+  --accent: #6366f1;
+  --accent-light: #818cf8;
+  --accent-glow: rgba(99, 102, 241, 0.15);
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --border: #2a2a4a;
+  --border-light: #334155;
+  --red: #ef4444;
+  --red-bg: rgba(239, 68, 68, 0.12);
+  --red-border: rgba(239, 68, 68, 0.3);
+  --orange: #f97316;
+  --orange-bg: rgba(249, 115, 22, 0.12);
+  --orange-border: rgba(249, 115, 22, 0.3);
+  --yellow: #eab308;
+  --yellow-bg: rgba(234, 179, 8, 0.12);
+  --yellow-border: rgba(234, 179, 8, 0.3);
+  --green: #22c55e;
+  --green-bg: rgba(34, 197, 94, 0.12);
+  --blue: #3b82f6;
+  --blue-bg: rgba(59, 130, 246, 0.12);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  --shadow-lg: 0 8px 30px rgba(0,0,0,0.5);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-xs: 6px;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ===== SCROLLBAR ===== */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-primary); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ===== NAV BAR ===== */
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 100%);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(20px);
+  padding: 0 2rem;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: var(--shadow-md);
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nav-logo {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, var(--accent), #a78bfa);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 16px;
+  color: white;
+  letter-spacing: -1px;
+}
+
+.nav-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.3px;
+}
+
+.nav-title span {
+  color: var(--accent-light);
+}
+
+.nav-meta {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.sprint-badge {
+  background: var(--accent-glow);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  color: var(--accent-light);
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.last-updated {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.btn-refresh {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 8px 16px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 500;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.btn-refresh:hover {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.btn-refresh svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ===== MAIN CONTAINER ===== */
+.main-container {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 1.5rem 2rem 3rem;
+}
+
+/* ===== SECTION HEADERS ===== */
+.section-header {
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section-header h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.3px;
+}
+
+.section-header .section-icon {
+  font-size: 1.2rem;
+}
+
+.section-divider {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--border), transparent);
+  margin-left: 12px;
+}
+
+/* ===== KPI HERO SECTION ===== */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+.kpi-card {
+  background: linear-gradient(145deg, var(--bg-card), #151528);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.kpi-card.health::before { background: linear-gradient(90deg, var(--red), #dc2626); }
+.kpi-card.completion::before { background: linear-gradient(90deg, var(--orange), var(--yellow)); }
+.kpi-card.velocity::before { background: linear-gradient(90deg, var(--text-muted), var(--border)); }
+.kpi-card.time::before { background: linear-gradient(90deg, var(--yellow), var(--orange)); }
+
+.kpi-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg), 0 0 30px var(--accent-glow);
+}
+
+.kpi-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+.kpi-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.kpi-value {
+  font-size: 2.5rem;
+  font-weight: 800;
+  letter-spacing: -2px;
+  line-height: 1;
+}
+
+.kpi-value.red { color: var(--red); }
+.kpi-value.orange { color: var(--orange); }
+.kpi-value.yellow { color: var(--yellow); }
+.kpi-value.green { color: var(--green); }
+.kpi-value.muted { color: var(--text-muted); }
+
+.kpi-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.kpi-badge.critical { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border); }
+.kpi-badge.warning { background: var(--yellow-bg); color: var(--yellow); border: 1px solid var(--yellow-border); }
+.kpi-badge.info { background: var(--blue-bg); color: var(--blue); border: 1px solid rgba(59,130,246,0.3); }
+
+.kpi-sub {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 0.75rem;
+}
+
+.kpi-sub strong { color: var(--text-primary); font-weight: 600; }
+
+/* Progress Bar */
+.progress-track {
+  width: 100%;
+  height: 8px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 4px;
+  margin-top: 0.75rem;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 1.5s ease;
+}
+
+.progress-fill.red { background: linear-gradient(90deg, var(--red), #f87171); }
+.progress-fill.orange { background: linear-gradient(90deg, var(--orange), var(--yellow)); }
+.progress-fill.yellow { background: linear-gradient(90deg, var(--yellow), #facc15); }
+.progress-fill.green { background: linear-gradient(90deg, var(--green), #4ade80); }
+
+/* Gauge */
+.gauge-container {
+  position: relative;
+  width: 90px;
+  height: 90px;
+  flex-shrink: 0;
+}
+
+.gauge-container canvas {
+  width: 90px !important;
+  height: 90px !important;
+}
+
+.gauge-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.gauge-label .gauge-number {
+  font-size: 1.3rem;
+  font-weight: 800;
+  display: block;
+  line-height: 1.1;
+}
+
+.gauge-label .gauge-unit {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Velocity card special */
+.velocity-na {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.velocity-recommend {
+  font-size: 0.75rem;
+  color: var(--accent-light);
+  margin-top: 0.5rem;
+  padding: 6px 10px;
+  background: var(--accent-glow);
+  border-radius: var(--radius-xs);
+  border: 1px solid rgba(99,102,241,0.2);
+}
+
+/* ===== RISK ZONE ===== */
+.risk-section {
+  margin-bottom: 2rem;
+}
+
+.risk-header {
+  background: linear-gradient(135deg, rgba(239,68,68,0.15), rgba(249,115,22,0.1));
+  border: 1px solid var(--red-border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.risk-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--red);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.risk-count {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  background: rgba(255,255,255,0.06);
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+.filter-group {
+  display: flex;
+  gap: 6px;
+}
+
+.filter-btn {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 500;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+
+.filter-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent-light);
+}
+
+.filter-btn.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.risk-table-wrapper {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+  overflow-x: auto;
+}
+
+.risk-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.risk-table thead th {
+  background: rgba(255,255,255,0.03);
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.2s;
+  white-space: nowrap;
+}
+
+.risk-table thead th:hover {
+  color: var(--accent-light);
+}
+
+.risk-table thead th .sort-icon {
+  margin-left: 4px;
+  font-size: 0.65rem;
+  opacity: 0.4;
+}
+
+.risk-table thead th.sorted .sort-icon {
+  opacity: 1;
+  color: var(--accent-light);
+}
+
+.risk-table tbody tr {
+  transition: all 0.15s;
+  cursor: pointer;
+}
+
+.risk-table tbody tr:hover {
+  background: rgba(255,255,255,0.03);
+}
+
+.risk-table tbody td {
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  white-space: nowrap;
+}
+
+.risk-table tbody tr.row-blocked {
+  background: var(--red-bg);
+  border-left: 3px solid var(--red);
+}
+
+.risk-table tbody tr.row-blocked:hover {
+  background: rgba(239, 68, 68, 0.18);
+}
+
+.risk-table tbody tr.row-overdue {
+  background: var(--orange-bg);
+  border-left: 3px solid var(--orange);
+}
+
+.risk-table tbody tr.row-overdue:hover {
+  background: rgba(249, 115, 22, 0.18);
+}
+
+.risk-table tbody tr.row-stalled {
+  background: var(--yellow-bg);
+  border-left: 3px solid var(--yellow);
+}
+
+.risk-table tbody tr.row-stalled:hover {
+  background: rgba(234, 179, 8, 0.18);
+}
+
+.ticket-link {
+  color: var(--accent-light);
+  font-weight: 600;
+  text-decoration: none;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.82rem;
+}
+
+.ticket-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.status-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.status-pill.blocked { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border); }
+.status-pill.testing { background: var(--blue-bg); color: var(--blue); border: 1px solid rgba(59,130,246,0.3); }
+.status-pill.review { background: rgba(168,85,247,0.12); color: #a855f7; border: 1px solid rgba(168,85,247,0.3); }
+.status-pill.develop { background: var(--yellow-bg); color: var(--yellow); border: 1px solid var(--yellow-border); }
+.status-pill.release { background: var(--green-bg); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
+.status-pill.undertesting { background: rgba(14,165,233,0.12); color: #0ea5e9; border: 1px solid rgba(14,165,233,0.3); }
+
+.priority-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+}
+
+.priority-dot::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.priority-dot.highest::before { background: var(--red); box-shadow: 0 0 6px var(--red); }
+.priority-dot.high::before { background: var(--orange); box-shadow: 0 0 6px var(--orange); }
+.priority-dot.medium::before { background: var(--blue); }
+.priority-dot.low::before { background: var(--green); }
+
+.flag-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.flag-badge.blocked-flag { background: var(--red-bg); color: var(--red); }
+.flag-badge.overdue-flag { background: var(--orange-bg); color: var(--orange); }
+.flag-badge.stalled-flag { background: var(--yellow-bg); color: var(--yellow); }
+
+/* ===== CHARTS GRID ===== */
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+.chart-card {
+  background: linear-gradient(145deg, var(--bg-card), #151528);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  transition: all 0.3s;
+}
+
+.chart-card:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.chart-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chart-title .chart-icon {
+  font-size: 1rem;
+}
+
+.chart-container {
+  position: relative;
+  width: 100%;
+}
+
+.chart-container.bar-chart { height: 380px; }
+.chart-container.doughnut-chart { height: 340px; }
+.chart-container.line-chart { height: 300px; }
+.chart-container.pie-chart { height: 280px; }
+
+/* ===== BURNDOWN (FULL WIDTH) ===== */
+.burndown-section {
+  margin-bottom: 2rem;
+}
+
+.burndown-card {
+  background: linear-gradient(145deg, var(--bg-card), #151528);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+}
+
+.burndown-chart-container {
+  position: relative;
+  height: 320px;
+  width: 100%;
+}
+
+/* ===== BOTTOM ROW ===== */
+.bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+/* ===== FOOTER ===== */
+.dashboard-footer {
+  text-align: center;
+  padding: 2rem 0 1rem;
+  border-top: 1px solid var(--border);
+  margin-top: 1rem;
+}
+
+.footer-brand {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.4rem;
+}
+
+.footer-brand span { color: var(--accent-light); }
+
+.footer-meta {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-bottom: 0.3rem;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 1200px) {
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .charts-grid { grid-template-columns: 1fr; }
+  .bottom-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 768px) {
+  .navbar { padding: 0 1rem; flex-wrap: wrap; height: auto; padding: 0.75rem 1rem; gap: 0.5rem; }
+  .nav-meta { flex-wrap: wrap; gap: 0.75rem; }
+  .main-container { padding: 1rem; }
+  .kpi-grid { grid-template-columns: 1fr; }
+  .risk-header { flex-direction: column; align-items: flex-start; }
+  .filter-group { flex-wrap: wrap; }
+}
+
+/* ===== ANIMATIONS ===== */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.kpi-card { animation: fadeInUp 0.5s ease forwards; }
+.kpi-card:nth-child(1) { animation-delay: 0.05s; }
+.kpi-card:nth-child(2) { animation-delay: 0.1s; }
+.kpi-card:nth-child(3) { animation-delay: 0.15s; }
+.kpi-card:nth-child(4) { animation-delay: 0.2s; }
+
+.chart-card { animation: fadeInUp 0.5s ease forwards; animation-delay: 0.25s; opacity: 0; }
+.burndown-card { animation: fadeInUp 0.5s ease forwards; animation-delay: 0.3s; opacity: 0; }
+
+/* Refresh spin */
+.btn-refresh.spinning svg { animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- ===== NAV BAR ===== -->
+<nav class="navbar">
+  <div class="nav-brand">
+    <div class="nav-logo">R2</div>
+    <div class="nav-title">Rased V2 <span>— Jira Intelligence Dashboard</span></div>
+  </div>
+  <div class="nav-meta">
+    <div class="sprint-badge">RNT Sprint 19 | Day 10/23</div>
+    <div class="last-updated" id="navTimestamp">Last updated: --</div>
+    <button class="btn-refresh" id="btnRefresh" onclick="refreshDashboard()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      Refresh
+    </button>
+  </div>
+</nav>
+
+<!-- ===== MAIN CONTENT ===== -->
+<div class="main-container">
+
+  <!-- KPI HERO -->
+  <div class="section-header" style="margin-top: 0.5rem;">
+    <span class="section-icon">&#x1F4CA;</span>
+    <h2>Sprint KPIs</h2>
+    <div class="section-divider"></div>
+  </div>
+
+  <div class="kpi-grid">
+    <!-- Card 1: Sprint Health -->
+    <div class="kpi-card health">
+      <div class="kpi-label">Sprint Health Score</div>
+      <div class="kpi-main">
+        <div>
+          <div class="kpi-value red">28<span style="font-size:1.2rem;font-weight:600;color:var(--text-muted);">/100</span></div>
+          <div style="margin-top:0.5rem;"><span class="kpi-badge critical">Critical</span></div>
+        </div>
+        <div class="gauge-container">
+          <canvas id="gaugeHealth"></canvas>
+          <div class="gauge-label">
+            <span class="gauge-number" style="color:var(--red);">28</span>
+            <span class="gauge-unit">Score</span>
+          </div>
+        </div>
+      </div>
+      <div class="kpi-sub">Sprint is severely behind schedule with high blockers</div>
+    </div>
+
+    <!-- Card 2: Completion Rate -->
+    <div class="kpi-card completion">
+      <div class="kpi-label">Completion Rate</div>
+      <div class="kpi-main">
+        <div>
+          <div class="kpi-value orange">8<span style="font-size:1.5rem;font-weight:700;">%</span></div>
+          <div class="kpi-sub" style="margin-top:0.5rem;"><strong>9</strong> Done / <strong>116</strong> Total</div>
+        </div>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill orange" style="width: 0%;" id="completionBar"></div>
+      </div>
+    </div>
+
+    <!-- Card 3: Velocity -->
+    <div class="kpi-card velocity">
+      <div class="kpi-label">Velocity Tracker</div>
+      <div class="kpi-main" style="flex-direction:column;align-items:flex-start;">
+        <div class="velocity-na">N/A — Story Points<br>Not Configured</div>
+        <div class="velocity-recommend">Recommend enabling story point estimation for accurate velocity tracking</div>
+      </div>
+    </div>
+
+    <!-- Card 4: Time Progress -->
+    <div class="kpi-card time">
+      <div class="kpi-label">Time Progress</div>
+      <div class="kpi-main">
+        <div>
+          <div class="kpi-value yellow">43<span style="font-size:1.5rem;font-weight:700;">%</span></div>
+          <div style="margin-top:0.5rem;"><span class="kpi-badge warning">At Risk</span></div>
+        </div>
+        <div class="gauge-container">
+          <canvas id="gaugeTime"></canvas>
+          <div class="gauge-label">
+            <span class="gauge-number" style="color:var(--yellow);">43%</span>
+            <span class="gauge-unit">Elapsed</span>
+          </div>
+        </div>
+      </div>
+      <div class="kpi-sub"><strong>10</strong> days elapsed / <strong>13</strong> remaining</div>
+    </div>
+  </div>
+
+  <!-- RISK ZONE -->
+  <div class="risk-section">
+    <div class="risk-header">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div class="risk-title">&#x26A0;&#xFE0F; Risk Zone — Blocked, Overdue &amp; High Priority</div>
+        <div class="risk-count" id="riskCount">25 items</div>
+      </div>
+      <div class="filter-group">
+        <button class="filter-btn active" data-filter="all" onclick="filterRiskTable('all', this)">All</button>
+        <button class="filter-btn" data-filter="blocked" onclick="filterRiskTable('blocked', this)">Blocked</button>
+        <button class="filter-btn" data-filter="overdue" onclick="filterRiskTable('overdue', this)">Overdue</button>
+        <button class="filter-btn" data-filter="stalled" onclick="filterRiskTable('stalled', this)">Stalled</button>
+      </div>
+    </div>
+    <div class="risk-table-wrapper">
+      <table class="risk-table" id="riskTable">
+        <thead>
+          <tr>
+            <th onclick="sortTable(0)" data-col="0">Ticket ID <span class="sort-icon">&#x25B2;&#x25BC;</span></th>
+            <th onclick="sortTable(1)" data-col="1">Assignee <span class="sort-icon">&#x25B2;&#x25BC;</span></th>
+            <th onclick="sortTable(2)" data-col="2">Status <span class="sort-icon">&#x25B2;&#x25BC;</span></th>
+            <th onclick="sortTable(3)" data-col="3">Days in Status <span class="sort-icon">&#x25B2;&#x25BC;</span></th>
+            <th onclick="sortTable(4)" data-col="4">Priority <span class="sort-icon">&#x25B2;&#x25BC;</span></th>
+            <th onclick="sortTable(5)" data-col="5">Flag <span class="sort-icon">&#x25B2;&#x25BC;</span></th>
+          </tr>
+        </thead>
+        <tbody id="riskTableBody">
+          <!-- Populated by JS -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- CHARTS ROW: Resource Allocation + Status Distribution -->
+  <div class="charts-grid">
+    <!-- Resource Allocation -->
+    <div class="chart-card">
+      <div class="chart-title"><span class="chart-icon">&#x1F465;</span> Resource Allocation Map</div>
+      <div class="chart-container bar-chart">
+        <canvas id="chartResource"></canvas>
+      </div>
+    </div>
+
+    <!-- Status Distribution -->
+    <div class="chart-card">
+      <div class="chart-title"><span class="chart-icon">&#x1F4CA;</span> Status Distribution</div>
+      <div class="chart-container doughnut-chart">
+        <canvas id="chartStatus"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- BURNDOWN CHART -->
+  <div class="burndown-section">
+    <div class="chart-card burndown-card">
+      <div class="chart-title"><span class="chart-icon">&#x1F4C9;</span> Sprint Burndown — Ideal vs Actual</div>
+      <div class="burndown-chart-container">
+        <canvas id="chartBurndown"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM ROW: Priority Distribution -->
+  <div class="bottom-grid">
+    <div class="chart-card">
+      <div class="chart-title"><span class="chart-icon">&#x1F534;</span> Priority Distribution</div>
+      <div class="chart-container pie-chart">
+        <canvas id="chartPriority"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title"><span class="chart-icon">&#x1F4CB;</span> Sprint Summary</div>
+      <div style="padding:0.5rem 0;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+          <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:1rem;border:1px solid var(--border);">
+            <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;">Total Issues</div>
+            <div style="font-size:2rem;font-weight:800;color:var(--text-primary);margin-top:0.25rem;">116</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:1rem;border:1px solid var(--border);">
+            <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;">Blocked</div>
+            <div style="font-size:2rem;font-weight:800;color:var(--red);margin-top:0.25rem;">7</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:1rem;border:1px solid var(--border);">
+            <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;">Overdue</div>
+            <div style="font-size:2rem;font-weight:800;color:var(--orange);margin-top:0.25rem;">18</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:1rem;border:1px solid var(--border);">
+            <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;">Done</div>
+            <div style="font-size:2rem;font-weight:800;color:var(--green);margin-top:0.25rem;">9</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:1rem;border:1px solid var(--border);">
+            <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;">In Progress</div>
+            <div style="font-size:2rem;font-weight:800;color:var(--accent-light);margin-top:0.25rem;">5</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:1rem;border:1px solid var(--border);">
+            <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;">Sprint Days Left</div>
+            <div style="font-size:2rem;font-weight:800;color:var(--yellow);margin-top:0.25rem;">13</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="dashboard-footer">
+    <div class="footer-brand">Powered by <span>Jira Intelligence Agent v1.0.0</span></div>
+    <div class="footer-meta">Data Source: rased.atlassian.net | Project: RNT | Board: 112</div>
+    <div class="footer-meta" id="footerTimestamp">Last refreshed: --</div>
+  </footer>
+
+</div>
+
+<script>
+// ============================================================
+// DASHBOARD DATA OBJECT
+// Replace this with live API data in production
+// ============================================================
+const DASHBOARD_DATA = {
+  sprint: {
+    name: "RNT Sprint 19",
+    dayElapsed: 10,
+    totalDays: 23,
+    startDate: "2025-02-23",
+    endDate: "2025-03-18",
+    project: "RNT",
+    board: 112
+  },
+
+  kpis: {
+    healthScore: 28,
+    healthMax: 100,
+    healthLabel: "CRITICAL",
+    completionDone: 9,
+    completionTotal: 116,
+    completionPercent: 8,
+    velocityConfigured: false,
+    timeElapsedPercent: 43,
+    daysElapsed: 10,
+    daysRemaining: 13
+  },
+
+  riskItems: [
+    { id: "RNT-696",  assignee: "Abdulrahman Alhumud", status: "Ready For Testing", daysInStatus: 126, priority: "Medium",  flag: "OVERDUE",  category: "overdue" },
+    { id: "RNT-1861", assignee: "Hossam Haggag",       status: "To Be Reviewed",    daysInStatus: 64,  priority: "Medium",  flag: "OVERDUE",  category: "overdue" },
+    { id: "RNT-1686", assignee: "Hossam Haggag",       status: "Ready To Develop",  daysInStatus: 49,  priority: "Highest", flag: "OVERDUE",  category: "overdue" },
+    { id: "RNT-1795", assignee: "ASHWAQ ALYAHIWI",     status: "To Be Released",    daysInStatus: 18,  priority: "High",    flag: "OVERDUE",  category: "overdue" },
+    { id: "RNT-1796", assignee: "ASHWAQ ALYAHIWI",     status: "To Be Released",    daysInStatus: 18,  priority: "High",    flag: "OVERDUE",  category: "overdue" },
+    { id: "RNT-1798", assignee: "ASHWAQ ALYAHIWI",     status: "To Be Released",    daysInStatus: 18,  priority: "Highest", flag: "OVERDUE",  category: "overdue" },
+    { id: "RNT-1806", assignee: "ASHWAQ ALYAHIWI",     status: "To Be Released",    daysInStatus: 18,  priority: "High",    flag: "OVERDUE",  category: "overdue" },
+    { id: "RNT-1802", assignee: "ASHWAQ ALYAHIWI",     status: "To Be Released",    daysInStatus: 17,  priority: "Medium",  flag: "OVERDUE",  category: "overdue" },
+    { id: "RNT-1830", assignee: "ASHWAQ ALYAHIWI",     status: "Ready For Testing", daysInStatus: 16,  priority: "High",    flag: "OVERDUE",  category: "overdue" },
+    { id: "RNT-1791", assignee: "Tamer",               status: "Ready For Testing", daysInStatus: 15,  priority: "High",    flag: "OVERDUE",  category: "overdue" },
+    { id: "RNT-1837", assignee: "ASHWAQ ALYAHIWI",     status: "To Be Released",    daysInStatus: 11,  priority: "High",    flag: "OVERDUE",  category: "overdue" },
+    { id: "RNT-1864", assignee: "ASHWAQ ALYAHIWI",     status: "To Be Released",    daysInStatus: 7,   priority: "High",    flag: "OVERDUE",  category: "overdue" },
+    { id: "RNT-1877", assignee: "Bashayr almutairi",   status: "To Be Released",    daysInStatus: 4,   priority: "High",    flag: "OVERDUE",  category: "overdue" },
+    { id: "RNT-1878", assignee: "ASHWAQ ALYAHIWI",     status: "To Be Released",    daysInStatus: 4,   priority: "High",    flag: "OVERDUE",  category: "overdue" },
+    { id: "RNT-1881", assignee: "ASHWAQ ALYAHIWI",     status: "Under Testing",     daysInStatus: 3,   priority: "High",    flag: "STALLED",  category: "stalled" },
+    { id: "RNT-1905", assignee: "ASHWAQ ALYAHIWI",     status: "To Be Released",    daysInStatus: 1,   priority: "Highest", flag: "OVERDUE",  category: "overdue" },
+    { id: "RNT-1906", assignee: "ASHWAQ ALYAHIWI",     status: "To Be Released",    daysInStatus: 1,   priority: "High",    flag: "OVERDUE",  category: "overdue" },
+    { id: "RNT-1907", assignee: "ASHWAQ ALYAHIWI",     status: "To Be Released",    daysInStatus: 1,   priority: "High",    flag: "OVERDUE",  category: "overdue" },
+    { id: "RNT-1746", assignee: "Tarek Mohamed",       status: "Blocked",           daysInStatus: 3,   priority: "Medium",  flag: "BLOCKED",  category: "blocked" },
+    { id: "RNT-1813", assignee: "Ziad Mohamed",        status: "Blocked",           daysInStatus: 10,  priority: "Medium",  flag: "BLOCKED",  category: "blocked" },
+    { id: "RNT-1814", assignee: "Ziad Mohamed",        status: "Blocked",           daysInStatus: 10,  priority: "Medium",  flag: "BLOCKED",  category: "blocked" },
+    { id: "RNT-1815", assignee: "Ziad Mohamed",        status: "Blocked",           daysInStatus: 10,  priority: "Medium",  flag: "BLOCKED",  category: "blocked" },
+    { id: "RNT-1816", assignee: "Ziad Mohamed",        status: "Blocked",           daysInStatus: 10,  priority: "Medium",  flag: "BLOCKED",  category: "blocked" },
+    { id: "RNT-1711", assignee: "Abdulrahman Alhumud", status: "Blocked",           daysInStatus: null, priority: "Medium", flag: "BLOCKED",  category: "blocked" },
+    { id: "RNT-1818", assignee: "Abdulrahman Alhumud", status: "Blocked",           daysInStatus: null, priority: "Medium", flag: "BLOCKED",  category: "blocked" }
+  ],
+
+  resourceAllocation: [
+    { name: "Ziad Mohamed",            tasks: 33, overdue: 0,  risk: "red" },
+    { name: "ASHWAQ ALYAHIWI",         tasks: 21, overdue: 15, risk: "red" },
+    { name: "Amani Fahad Aloufi",      tasks: 9,  overdue: 0,  risk: "orange" },
+    { name: "Hossam Haggag",           tasks: 8,  overdue: 2,  risk: "orange" },
+    { name: "Salem Altamimi",          tasks: 8,  overdue: 0,  risk: "orange" },
+    { name: "Tamer",                   tasks: 8,  overdue: 1,  risk: "orange" },
+    { name: "Bashayr almutairi",       tasks: 6,  overdue: 1,  risk: "green" },
+    { name: "Mahmoud Elshazly",        tasks: 5,  overdue: 0,  risk: "green" },
+    { name: "Hamed Abd ElAziz",        tasks: 4,  overdue: 0,  risk: "green" },
+    { name: "Tarek Mohamed",           tasks: 3,  overdue: 0,  risk: "green" },
+    { name: "Abdulrahman Alhumud",     tasks: 3,  overdue: 1,  risk: "green" },
+    { name: "Ahmed Elanany",           tasks: 3,  overdue: 0,  risk: "green" },
+    { name: "Ahmed Abdelkader Khedr",  tasks: 2,  overdue: 0,  risk: "green" },
+    { name: "Hamad",                   tasks: 1,  overdue: 0,  risk: "green" }
+  ],
+
+  statusDistribution: {
+    labels: ["Open", "To Be Released", "Under Testing", "Ready For Testing", "Ready To Develop", "To Be Reviewed", "Blocked", "Done", "In Progress", "Released Into Live", "Reopened", "Canceled", "Deferred", "To Be Clarified", "Under UAT", "Not Applicable"],
+    values: [32, 17, 11, 10, 9, 8, 7, 5, 5, 4, 3, 1, 1, 1, 1, 1]
+  },
+
+  burndown: {
+    dates: ["Feb 23", "Feb 24", "Feb 25", "Feb 26", "Feb 27", "Feb 28", "Mar 1", "Mar 2", "Mar 3", "Mar 4", "Mar 5", "Mar 6", "Mar 7", "Mar 8", "Mar 9", "Mar 10", "Mar 11", "Mar 12", "Mar 13", "Mar 14", "Mar 15", "Mar 16", "Mar 17", "Mar 18"],
+    ideal: [116, 111.2, 106.3, 101.5, 96.7, 91.8, 87.0, 82.2, 77.3, 72.5, 67.7, 62.8, 58.0, 53.2, 48.3, 43.5, 38.7, 33.8, 29.0, 24.2, 19.3, 14.5, 9.7, 0],
+    actual: [116, 116, 116, 115, 115, 114, 113, 113, 112, 111, 107, null, null, null, null, null, null, null, null, null, null, null, null, null]
+  },
+
+  priorityDistribution: {
+    labels: ["Highest", "High", "Medium", "Low"],
+    values: [19, 23, 70, 4],
+    colors: ["#ef4444", "#f97316", "#3b82f6", "#22c55e"]
+  }
+};
+
+
+// ============================================================
+// INITIALIZATION
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  updateTimestamps();
+  renderRiskTable();
+  renderGauges();
+  renderResourceChart();
+  renderStatusChart();
+  renderBurndownChart();
+  renderPriorityChart();
+  animateProgressBar();
+});
+
+
+// ============================================================
+// TIMESTAMPS
+// ============================================================
+function updateTimestamps() {
+  const now = new Date();
+  const formatted = now.toLocaleString('en-US', {
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit'
+  });
+  document.getElementById('navTimestamp').textContent = 'Last updated: ' + formatted;
+  document.getElementById('footerTimestamp').textContent = 'Last refreshed: ' + formatted;
+}
+
+
+// ============================================================
+// PROGRESS BAR ANIMATION
+// ============================================================
+function animateProgressBar() {
+  setTimeout(() => {
+    document.getElementById('completionBar').style.width = DASHBOARD_DATA.kpis.completionPercent + '%';
+  }, 300);
+}
+
+
+// ============================================================
+// GAUGE CHARTS
+// ============================================================
+function renderGauges() {
+  // Health Gauge
+  const healthCtx = document.getElementById('gaugeHealth').getContext('2d');
+  new Chart(healthCtx, {
+    type: 'doughnut',
+    data: {
+      datasets: [{
+        data: [DASHBOARD_DATA.kpis.healthScore, DASHBOARD_DATA.kpis.healthMax - DASHBOARD_DATA.kpis.healthScore],
+        backgroundColor: ['#ef4444', 'rgba(255,255,255,0.06)'],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      cutout: '75%',
+      responsive: false,
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      rotation: -90,
+      circumference: 180
+    }
+  });
+
+  // Time Gauge
+  const timeCtx = document.getElementById('gaugeTime').getContext('2d');
+  new Chart(timeCtx, {
+    type: 'doughnut',
+    data: {
+      datasets: [{
+        data: [DASHBOARD_DATA.kpis.timeElapsedPercent, 100 - DASHBOARD_DATA.kpis.timeElapsedPercent],
+        backgroundColor: ['#eab308', 'rgba(255,255,255,0.06)'],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      cutout: '75%',
+      responsive: false,
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      rotation: -90,
+      circumference: 180
+    }
+  });
+}
+
+
+// ============================================================
+// RISK TABLE
+// ============================================================
+function getStatusPillClass(status) {
+  const s = status.toLowerCase();
+  if (s === 'blocked') return 'blocked';
+  if (s.includes('testing') && s.includes('ready')) return 'testing';
+  if (s.includes('under testing')) return 'undertesting';
+  if (s.includes('review')) return 'review';
+  if (s.includes('develop')) return 'develop';
+  if (s.includes('release')) return 'release';
+  return '';
+}
+
+function getPriorityClass(priority) {
+  return priority.toLowerCase();
+}
+
+function getFlagClass(flag) {
+  const f = flag.toUpperCase();
+  if (f === 'BLOCKED') return 'blocked-flag';
+  if (f === 'OVERDUE') return 'overdue-flag';
+  if (f === 'STALLED') return 'stalled-flag';
+  return '';
+}
+
+function getRowClass(category) {
+  if (category === 'blocked') return 'row-blocked';
+  if (category === 'overdue') return 'row-overdue';
+  if (category === 'stalled') return 'row-stalled';
+  return '';
+}
+
+function renderRiskTable(filter) {
+  const tbody = document.getElementById('riskTableBody');
+  const items = filter && filter !== 'all'
+    ? DASHBOARD_DATA.riskItems.filter(i => i.category === filter)
+    : DASHBOARD_DATA.riskItems;
+
+  document.getElementById('riskCount').textContent = items.length + ' items';
+
+  tbody.innerHTML = items.map(item => `
+    <tr class="${getRowClass(item.category)}" onclick="window.open('https://rased.atlassian.net/browse/${item.id}', '_blank')" title="Open ${item.id} in Jira">
+      <td><a class="ticket-link" href="https://rased.atlassian.net/browse/${item.id}" target="_blank" onclick="event.stopPropagation()">${item.id}</a></td>
+      <td>${item.assignee}</td>
+      <td><span class="status-pill ${getStatusPillClass(item.status)}">${item.status}</span></td>
+      <td style="font-weight:600;${item.daysInStatus !== null && item.daysInStatus >= 10 ? 'color:var(--red);' : ''}">${item.daysInStatus !== null ? item.daysInStatus + 'd' : 'N/A'}</td>
+      <td><span class="priority-dot ${getPriorityClass(item.priority)}">${item.priority}</span></td>
+      <td><span class="flag-badge ${getFlagClass(item.flag)}">${item.flag}</span></td>
+    </tr>
+  `).join('');
+}
+
+function filterRiskTable(filter, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderRiskTable(filter);
+}
+
+// Table sorting
+let sortState = { col: null, asc: true };
+
+function sortTable(colIndex) {
+  const table = document.getElementById('riskTable');
+  const tbody = table.querySelector('tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  const headers = table.querySelectorAll('thead th');
+
+  if (sortState.col === colIndex) {
+    sortState.asc = !sortState.asc;
+  } else {
+    sortState.col = colIndex;
+    sortState.asc = true;
+  }
+
+  headers.forEach(h => h.classList.remove('sorted'));
+  headers[colIndex].classList.add('sorted');
+
+  rows.sort((a, b) => {
+    let aVal = a.cells[colIndex].textContent.trim();
+    let bVal = b.cells[colIndex].textContent.trim();
+
+    // Numeric sort for days column
+    if (colIndex === 3) {
+      aVal = aVal === 'N/A' ? -1 : parseInt(aVal);
+      bVal = bVal === 'N/A' ? -1 : parseInt(bVal);
+      return sortState.asc ? aVal - bVal : bVal - aVal;
+    }
+
+    // Priority sort
+    if (colIndex === 4) {
+      const order = { 'Highest': 4, 'High': 3, 'Medium': 2, 'Low': 1 };
+      return sortState.asc ? (order[aVal] || 0) - (order[bVal] || 0) : (order[bVal] || 0) - (order[aVal] || 0);
+    }
+
+    // String sort
+    return sortState.asc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+  });
+
+  rows.forEach(row => tbody.appendChild(row));
+}
+
+
+// ============================================================
+// RESOURCE ALLOCATION CHART
+// ============================================================
+function renderResourceChart() {
+  const data = DASHBOARD_DATA.resourceAllocation;
+  const ctx = document.getElementById('chartResource').getContext('2d');
+
+  const riskColors = {
+    red: '#ef4444',
+    orange: '#f97316',
+    green: '#22c55e'
+  };
+
+  const overdueColors = data.map(d => 'rgba(239, 68, 68, 0.6)');
+
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: data.map(d => d.name),
+      datasets: [
+        {
+          label: 'Total Tasks',
+          data: data.map(d => d.tasks - d.overdue),
+          backgroundColor: data.map(d => riskColors[d.risk]),
+          borderRadius: 4,
+          borderSkipped: false,
+          barPercentage: 0.7
+        },
+        {
+          label: 'Overdue',
+          data: data.map(d => d.overdue),
+          backgroundColor: overdueColors,
+          borderRadius: 4,
+          borderSkipped: false,
+          barPercentage: 0.7
+        }
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          stacked: true,
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          ticks: { color: '#94a3b8', font: { size: 11, family: 'Inter' } }
+        },
+        y: {
+          stacked: true,
+          grid: { display: false },
+          ticks: { color: '#e2e8f0', font: { size: 11, family: 'Inter', weight: '500' } }
+        }
+      },
+      plugins: {
+        legend: {
+          position: 'top',
+          align: 'end',
+          labels: { color: '#94a3b8', font: { size: 11, family: 'Inter' }, boxWidth: 12, padding: 16 }
+        },
+        tooltip: {
+          backgroundColor: '#1e1e3a',
+          titleColor: '#f1f5f9',
+          bodyColor: '#94a3b8',
+          borderColor: '#2a2a4a',
+          borderWidth: 1,
+          padding: 12,
+          cornerRadius: 8,
+          titleFont: { family: 'Inter', weight: '600' },
+          bodyFont: { family: 'Inter' },
+          callbacks: {
+            label: function(context) {
+              const item = data[context.dataIndex];
+              if (context.datasetIndex === 0) return 'Tasks: ' + item.tasks;
+              return 'Overdue: ' + item.overdue;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+
+// ============================================================
+// STATUS DISTRIBUTION CHART
+// ============================================================
+function renderStatusChart() {
+  const ctx = document.getElementById('chartStatus').getContext('2d');
+  const statusColors = [
+    '#6366f1', '#f97316', '#0ea5e9', '#3b82f6', '#eab308',
+    '#a855f7', '#ef4444', '#22c55e', '#14b8a6', '#10b981',
+    '#f59e0b', '#6b7280', '#9ca3af', '#ec4899', '#06b6d4', '#78716c'
+  ];
+
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: DASHBOARD_DATA.statusDistribution.labels,
+      datasets: [{
+        data: DASHBOARD_DATA.statusDistribution.values,
+        backgroundColor: statusColors,
+        borderColor: '#0f0f1a',
+        borderWidth: 2,
+        hoverBorderColor: '#fff',
+        hoverBorderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '55%',
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: {
+            color: '#94a3b8',
+            font: { size: 10.5, family: 'Inter' },
+            boxWidth: 10,
+            padding: 8,
+            generateLabels: function(chart) {
+              const dataset = chart.data.datasets[0];
+              return chart.data.labels.map((label, i) => ({
+                text: label + ' (' + dataset.data[i] + ')',
+                fillStyle: dataset.backgroundColor[i],
+                strokeStyle: 'transparent',
+                index: i,
+                hidden: false
+              }));
+            }
+          }
+        },
+        tooltip: {
+          backgroundColor: '#1e1e3a',
+          titleColor: '#f1f5f9',
+          bodyColor: '#94a3b8',
+          borderColor: '#2a2a4a',
+          borderWidth: 1,
+          padding: 12,
+          cornerRadius: 8,
+          titleFont: { family: 'Inter', weight: '600' },
+          bodyFont: { family: 'Inter' },
+          callbacks: {
+            label: function(context) {
+              const total = context.dataset.data.reduce((a, b) => a + b, 0);
+              const pct = ((context.raw / total) * 100).toFixed(1);
+              return context.label + ': ' + context.raw + ' (' + pct + '%)';
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+
+// ============================================================
+// BURNDOWN CHART
+// ============================================================
+function renderBurndownChart() {
+  const ctx = document.getElementById('chartBurndown').getContext('2d');
+  const bd = DASHBOARD_DATA.burndown;
+
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: bd.dates,
+      datasets: [
+        {
+          label: 'Ideal Burndown',
+          data: bd.ideal,
+          borderColor: '#6366f1',
+          backgroundColor: 'rgba(99, 102, 241, 0.08)',
+          borderWidth: 2,
+          borderDash: [6, 4],
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          fill: true,
+          tension: 0.1
+        },
+        {
+          label: 'Actual Progress',
+          data: bd.actual,
+          borderColor: '#ef4444',
+          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+          borderWidth: 3,
+          pointRadius: 3,
+          pointBackgroundColor: '#ef4444',
+          pointBorderColor: '#0f0f1a',
+          pointBorderWidth: 2,
+          pointHoverRadius: 6,
+          fill: true,
+          tension: 0.2,
+          spanGaps: false
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          ticks: { color: '#94a3b8', font: { size: 10.5, family: 'Inter' }, maxRotation: 45 }
+        },
+        y: {
+          beginAtZero: true,
+          max: 120,
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          ticks: { color: '#94a3b8', font: { size: 11, family: 'Inter' } },
+          title: { display: true, text: 'Remaining Issues', color: '#64748b', font: { size: 12, family: 'Inter', weight: '500' } }
+        }
+      },
+      plugins: {
+        legend: {
+          position: 'top',
+          align: 'end',
+          labels: { color: '#94a3b8', font: { size: 11, family: 'Inter' }, boxWidth: 16, padding: 16 }
+        },
+        tooltip: {
+          backgroundColor: '#1e1e3a',
+          titleColor: '#f1f5f9',
+          bodyColor: '#94a3b8',
+          borderColor: '#2a2a4a',
+          borderWidth: 1,
+          padding: 12,
+          cornerRadius: 8,
+          titleFont: { family: 'Inter', weight: '600' },
+          bodyFont: { family: 'Inter' },
+          callbacks: {
+            label: function(context) {
+              if (context.raw === null) return context.dataset.label + ': No data';
+              return context.dataset.label + ': ' + Math.round(context.raw) + ' issues';
+            }
+          }
+        },
+        annotation: undefined
+      }
+    },
+    plugins: [{
+      id: 'todayLine',
+      afterDraw: function(chart) {
+        const todayIndex = 10; // Day 10 = Mar 5 index
+        const meta = chart.getDatasetMeta(0);
+        if (meta.data[todayIndex]) {
+          const x = meta.data[todayIndex].x;
+          const ctx = chart.ctx;
+          const yAxis = chart.scales.y;
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(x, yAxis.top);
+          ctx.lineTo(x, yAxis.bottom);
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = 'rgba(234, 179, 8, 0.6)';
+          ctx.setLineDash([4, 4]);
+          ctx.stroke();
+          ctx.fillStyle = '#eab308';
+          ctx.font = '11px Inter';
+          ctx.textAlign = 'center';
+          ctx.fillText('Today', x, yAxis.top - 6);
+          ctx.restore();
+        }
+      }
+    }]
+  });
+}
+
+
+// ============================================================
+// PRIORITY DISTRIBUTION CHART
+// ============================================================
+function renderPriorityChart() {
+  const ctx = document.getElementById('chartPriority').getContext('2d');
+  const pd = DASHBOARD_DATA.priorityDistribution;
+
+  new Chart(ctx, {
+    type: 'pie',
+    data: {
+      labels: pd.labels,
+      datasets: [{
+        data: pd.values,
+        backgroundColor: pd.colors,
+        borderColor: '#0f0f1a',
+        borderWidth: 3,
+        hoverBorderColor: '#fff',
+        hoverBorderWidth: 2,
+        hoverOffset: 8
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: {
+            color: '#94a3b8',
+            font: { size: 12, family: 'Inter', weight: '500' },
+            boxWidth: 14,
+            padding: 16,
+            generateLabels: function(chart) {
+              const dataset = chart.data.datasets[0];
+              const total = dataset.data.reduce((a, b) => a + b, 0);
+              return chart.data.labels.map((label, i) => ({
+                text: label + ': ' + dataset.data[i] + ' (' + ((dataset.data[i] / total) * 100).toFixed(0) + '%)',
+                fillStyle: dataset.backgroundColor[i],
+                strokeStyle: 'transparent',
+                index: i,
+                hidden: false
+              }));
+            }
+          }
+        },
+        tooltip: {
+          backgroundColor: '#1e1e3a',
+          titleColor: '#f1f5f9',
+          bodyColor: '#94a3b8',
+          borderColor: '#2a2a4a',
+          borderWidth: 1,
+          padding: 12,
+          cornerRadius: 8,
+          titleFont: { family: 'Inter', weight: '600' },
+          bodyFont: { family: 'Inter' },
+          callbacks: {
+            label: function(context) {
+              const total = context.dataset.data.reduce((a, b) => a + b, 0);
+              const pct = ((context.raw / total) * 100).toFixed(1);
+              return context.label + ': ' + context.raw + ' issues (' + pct + '%)';
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+
+// ============================================================
+// REFRESH
+// ============================================================
+function refreshDashboard() {
+  const btn = document.getElementById('btnRefresh');
+  btn.classList.add('spinning');
+
+  updateTimestamps();
+
+  setTimeout(() => {
+    btn.classList.remove('spinning');
+  }, 800);
+}
+</script>
+</body>
+</html>
