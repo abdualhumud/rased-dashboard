@@ -1,0 +1,49 @@
+# ============================================================
+#  Jira Intelligence Agent — Daily Cloud Email Report
+#  Runs every day at 09:00 AM Riyadh time (UTC+3 = 06:00 UTC)
+#  Sunday–Thursday (Saudi work week)
+#  NO local machine needed — runs 100% in GitHub's cloud
+# ============================================================
+
+name: Daily Jira Sprint Report
+
+on:
+  schedule:
+    # 06:00 UTC = 09:00 AM Riyadh (AST, UTC+3) — Sun through Thu
+    - cron: '0 6 * * 0,1,2,3,4'
+
+  # Manual trigger — click "Run workflow" from the Actions tab any time
+  workflow_dispatch:
+
+jobs:
+  send-daily-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      # ── Pull the scripts ─────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Run the Python report generator & email sender ───────────────
+      - name: Generate report and send email
+        env:
+          JIRA_BASE_URL:  "https://rased.atlassian.net"
+          JIRA_EMAIL:     ${{ secrets.JIRA_EMAIL }}
+          JIRA_TOKEN:     ${{ secrets.JIRA_TOKEN }}
+          JIRA_BOARD_ID:  "112"
+          REPORT_EMAIL:   ${{ secrets.REPORT_EMAIL }}
+          SMTP_USER:      ${{ secrets.SMTP_USER }}
+          SMTP_PASS:      ${{ secrets.SMTP_PASS }}
+          SMTP_HOST:      ${{ secrets.SMTP_HOST }}
+          SMTP_PORT:      ${{ secrets.SMTP_PORT }}
+        run: python3 scripts/daily_report.py
+
+      # ── Upload generated HTML as a downloadable artifact (7-day keep) ─
+      - name: Upload email HTML artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: email-report-${{ github.run_id }}
+          path: email_report.html
+          retention-days: 7
