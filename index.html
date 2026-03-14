@@ -1116,11 +1116,39 @@ body {
 <div class="modal-backdrop" id="reportModal">
   <div class="modal-dialog">
     <div class="modal-title">&#128228; Send Report via Email</div>
-    <div class="modal-sub">Share today's sprint report to any email address instantly.</div>
-    <input class="modal-input" id="reportEmailInput" type="email" placeholder="recipient@email.com" onkeydown="if(event.key==='Enter')submitSendReport()">
-    <div class="modal-actions">
-      <button class="modal-btn cancel" onclick="closeModal('reportModal')">Cancel</button>
-      <button class="modal-btn primary" onclick="submitSendReport()">&#128228; Send Now</button>
+
+    <!-- LOCAL mode: email input -->
+    <div id="reportLocalView">
+      <div class="modal-sub">Share today's sprint report to any email address instantly.</div>
+      <input class="modal-input" id="reportEmailInput" type="email" placeholder="recipient@email.com" onkeydown="if(event.key==='Enter')submitSendReport()">
+      <div class="modal-actions">
+        <button class="modal-btn cancel" onclick="closeModal('reportModal')">Cancel</button>
+        <button class="modal-btn primary" onclick="submitSendReport()">&#128228; Send Now</button>
+      </div>
+    </div>
+
+    <!-- REMOTE mode: instructions -->
+    <div id="reportRemoteView" style="display:none;">
+      <div class="modal-sub">Email sending requires the local server running on your machine.</div>
+      <div style="background:var(--bg-tertiary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:16px;">
+        <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Steps to send reports</div>
+        <div style="font-size:0.85rem;color:var(--text-primary);line-height:1.8;">
+          <div><span style="color:var(--accent);font-weight:700;">1.</span> Open PowerShell in your Jira agent folder</div>
+          <div><span style="color:var(--accent);font-weight:700;">2.</span> Run: <code style="background:rgba(99,102,241,.15);padding:2px 7px;border-radius:4px;font-family:monospace;">.\start-dashboard.ps1</code></div>
+          <div><span style="color:var(--accent);font-weight:700;">3.</span> Open the dashboard at:</div>
+        </div>
+        <a href="http://localhost:9090" target="_blank"
+          style="display:block;margin-top:10px;background:var(--accent);color:#fff;text-align:center;padding:10px;border-radius:var(--radius-xs);font-weight:700;font-size:0.9rem;text-decoration:none;">
+          &#128279; Open Local Dashboard (localhost:9090)
+        </a>
+        <div style="margin-top:10px;font-size:0.78rem;color:var(--text-muted);">
+          Or send directly from PowerShell:<br>
+          <code style="font-family:monospace;color:var(--accent-light);">.\send-report.ps1 -To "you@company.com"</code>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="modal-btn cancel" onclick="closeModal('reportModal')">Close</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1131,11 +1159,36 @@ body {
     <div class="modal-title">&#x1F514; Send Nudge Alert</div>
     <div class="modal-sub" id="nudgeModalSub">Send a personalised alert to this team member with their task list.</div>
     <input type="hidden" id="nudgePersonName">
-    <input class="modal-input" id="nudgeEmailInput" type="email" placeholder="recipient@elm.sa (leave blank to send to yourself)" style="margin-bottom:8px;" onkeydown="if(event.key==='Enter')submitNudge()">
-    <div style="font-size:0.75rem;color:var(--text-muted);">Leave blank to send to yourself (PM copy). You can enter the team member's email to send directly to them.</div>
-    <div class="modal-actions">
-      <button class="modal-btn cancel" onclick="closeModal('nudgeModal')">Cancel</button>
-      <button class="modal-btn primary" onclick="submitNudge()">&#x1F514; Send Alert</button>
+
+    <!-- LOCAL mode -->
+    <div id="nudgeLocalView">
+      <input class="modal-input" id="nudgeEmailInput" type="email" placeholder="recipient@elm.sa (leave blank to send to yourself)" style="margin-bottom:8px;" onkeydown="if(event.key==='Enter')submitNudge()">
+      <div style="font-size:0.75rem;color:var(--text-muted);">Leave blank to send to yourself (PM copy). You can enter the team member's email to send directly to them.</div>
+      <div class="modal-actions">
+        <button class="modal-btn cancel" onclick="closeModal('nudgeModal')">Cancel</button>
+        <button class="modal-btn primary" onclick="submitNudge()">&#x1F514; Send Alert</button>
+      </div>
+    </div>
+
+    <!-- REMOTE mode -->
+    <div id="nudgeRemoteView" style="display:none;">
+      <div style="background:var(--bg-tertiary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:16px;">
+        <div style="font-size:0.85rem;color:var(--text-primary);line-height:1.8;">
+          <div><span style="color:var(--accent);font-weight:700;">1.</span> Run <code style="background:rgba(99,102,241,.15);padding:2px 7px;border-radius:4px;font-family:monospace;">.\start-dashboard.ps1</code></div>
+          <div><span style="color:var(--accent);font-weight:700;">2.</span> Use the local dashboard to send nudges</div>
+        </div>
+        <a href="http://localhost:9090" target="_blank"
+          style="display:block;margin-top:10px;background:var(--accent);color:#fff;text-align:center;padding:10px;border-radius:var(--radius-xs);font-weight:700;font-size:0.9rem;text-decoration:none;">
+          &#128279; Open Local Dashboard (localhost:9090)
+        </a>
+        <div style="margin-top:10px;font-size:0.78rem;color:var(--text-muted);">
+          Or run directly:<br>
+          <code style="font-family:monospace;color:var(--accent-light);">.\send-nudge.ps1 -AssigneeName "<span id="nudgeRemoteName"></span>"</code>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="modal-btn cancel" onclick="closeModal('nudgeModal')">Close</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1883,21 +1936,39 @@ function renderTeamPanel() {
 
 
 // ============================================================
+// ENVIRONMENT DETECTION
+// localhost:9090 → local server → API works
+// anything else  → GitHub Pages / file:// → show instructions
+// ============================================================
+const isLocalServer = window.location.hostname === 'localhost' ||
+                      window.location.hostname === '127.0.0.1';
+
+// ============================================================
 // SEND REPORT MODAL
 // ============================================================
 function openSendReportModal() {
-  document.getElementById('reportEmailInput').value = '';
-  document.getElementById('reportModal').classList.add('show');
-  setTimeout(() => document.getElementById('reportEmailInput').focus(), 100);
+  const local  = document.getElementById('reportLocalView');
+  const remote = document.getElementById('reportRemoteView');
+  if (isLocalServer) {
+    local.style.display  = '';
+    remote.style.display = 'none';
+    document.getElementById('reportEmailInput').value = '';
+    document.getElementById('reportModal').classList.add('show');
+    setTimeout(() => document.getElementById('reportEmailInput').focus(), 100);
+  } else {
+    local.style.display  = 'none';
+    remote.style.display = '';
+    document.getElementById('reportModal').classList.add('show');
+  }
 }
 
 function submitSendReport() {
   const email = document.getElementById('reportEmailInput').value.trim();
   if (!email || !email.includes('@')) { showToast('Please enter a valid email address', 'err'); return; }
   closeModal('reportModal');
-  showToast('Sending report to ' + email + '…', 'ok');
+  showToast('Generating & sending report to ' + email + '… (up to 60s)', 'ok');
 
-  fetch('http://localhost:9090/api/report', {
+  fetch('/api/report', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email })
@@ -1907,7 +1978,7 @@ function submitSendReport() {
     if (d.ok) showToast('✓ Report sent to ' + email, 'ok');
     else showToast('Failed: ' + (d.error || 'Unknown error'), 'err');
   })
-  .catch(() => showToast('Server not reachable. Is start-dashboard.ps1 running?', 'err'));
+  .catch(() => showToast('Failed to reach local server', 'err'));
 }
 
 
@@ -1918,9 +1989,21 @@ function openNudgeModal(personName) {
   document.getElementById('nudgePersonName').value = personName;
   document.getElementById('nudgeModalSub').textContent =
     'Send a personalised alert to ' + personName + ' with their open tasks and deadlines.';
-  document.getElementById('nudgeEmailInput').value = '';
+
+  const local  = document.getElementById('nudgeLocalView');
+  const remote = document.getElementById('nudgeRemoteView');
+  if (isLocalServer) {
+    local.style.display  = '';
+    remote.style.display = 'none';
+    document.getElementById('nudgeEmailInput').value = '';
+    setTimeout(() => document.getElementById('nudgeEmailInput').focus(), 100);
+  } else {
+    local.style.display  = 'none';
+    remote.style.display = '';
+    const el = document.getElementById('nudgeRemoteName');
+    if (el) el.textContent = personName;
+  }
   document.getElementById('nudgeModal').classList.add('show');
-  setTimeout(() => document.getElementById('nudgeEmailInput').focus(), 100);
 }
 
 function submitNudge() {
@@ -1929,7 +2012,7 @@ function submitNudge() {
   closeModal('nudgeModal');
   showToast('Sending nudge alert for ' + person + '…', 'ok');
 
-  fetch('http://localhost:9090/api/nudge', {
+  fetch('/api/nudge', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ person, email: email || undefined })
@@ -1939,7 +2022,7 @@ function submitNudge() {
     if (d.ok) showToast('✓ Alert sent' + (email ? ' to ' + email : ' to PM inbox'), 'ok');
     else showToast('Failed: ' + (d.error || 'Unknown'), 'err');
   })
-  .catch(() => showToast('Server not reachable. Is start-dashboard.ps1 running?', 'err'));
+  .catch(() => showToast('Failed to reach local server', 'err'));
 }
 
 
