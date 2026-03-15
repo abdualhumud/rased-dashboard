@@ -1175,35 +1175,57 @@ body {
     <div class="modal-sub" id="nudgeModalSub">Send a personalised alert to this team member with their task list.</div>
     <input type="hidden" id="nudgePersonName">
 
-    <!-- LOCAL mode -->
+    <!-- LOCAL mode (localhost:9090) -->
     <div id="nudgeLocalView">
-      <input class="modal-input" id="nudgeEmailInput" type="email" placeholder="recipient@elm.sa (leave blank to send to yourself)" style="margin-bottom:8px;" onkeydown="if(event.key==='Enter')submitNudge()">
-      <div style="font-size:0.75rem;color:var(--text-muted);">Leave blank to send to yourself (PM copy). You can enter the team member's email to send directly to them.</div>
+      <input class="modal-input" id="nudgeEmailInput" type="email"
+        placeholder="recipient@elm.sa (leave blank = PM copy only)"
+        style="margin-bottom:8px;" onkeydown="if(event.key==='Enter')submitNudge()">
+      <div style="font-size:0.75rem;color:var(--text-muted);">Leave blank to send to yourself. Enter team member's email to send directly to them.</div>
       <div class="modal-actions">
         <button class="modal-btn cancel" onclick="closeModal('nudgeModal')">Cancel</button>
         <button class="modal-btn primary" onclick="submitNudge()">&#x1F514; Send Alert</button>
       </div>
     </div>
 
-    <!-- REMOTE mode -->
+    <!-- REMOTE mode (GitHub Actions) -->
     <div id="nudgeRemoteView" style="display:none;">
-      <div style="background:var(--bg-tertiary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:16px;">
-        <div style="font-size:0.85rem;color:var(--text-primary);line-height:1.8;">
-          <div><span style="color:var(--accent);font-weight:700;">1.</span> Run <code style="background:rgba(99,102,241,.15);padding:2px 7px;border-radius:4px;font-family:monospace;">.\start-dashboard.ps1</code></div>
-          <div><span style="color:var(--accent);font-weight:700;">2.</span> Use the local dashboard to send nudges</div>
+
+      <!-- Step 1: PAT (reuses same token as Send Report) -->
+      <div id="nudgePatSetup">
+        <div class="modal-sub" style="margin-bottom:10px;">Connect once with a GitHub token — sends from the cloud in ~60 seconds.</div>
+        <div style="background:var(--bg-tertiary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:12px;font-size:0.8rem;color:var(--text-muted);line-height:1.7;">
+          <strong style="color:var(--text-primary);">One-time setup:</strong><br>
+          1. Go to <a href="https://github.com/settings/tokens?type=beta" target="_blank" style="color:var(--accent-light);">github.com → Settings → Fine-grained tokens</a><br>
+          2. Repository: <strong style="color:var(--text-primary);">rased-dashboard</strong> → Actions: <strong style="color:var(--text-primary);">Read &amp; Write</strong>
         </div>
-        <a href="http://localhost:9090" target="_blank"
-          style="display:block;margin-top:10px;background:var(--accent);color:#fff;text-align:center;padding:10px;border-radius:var(--radius-xs);font-weight:700;font-size:0.9rem;text-decoration:none;">
-          &#128279; Open Local Dashboard (localhost:9090)
-        </a>
-        <div style="margin-top:10px;font-size:0.78rem;color:var(--text-muted);">
-          Or run directly:<br>
-          <code style="font-family:monospace;color:var(--accent-light);">.\send-nudge.ps1 -AssigneeName "<span id="nudgeRemoteName"></span>"</code>
+        <input class="modal-input" id="nudgePatInput" type="password"
+          placeholder="github_pat_... or ghp_..."
+          style="font-family:monospace;letter-spacing:.05em;"
+          onkeydown="if(event.key==='Enter')saveNudgePat()">
+        <div class="modal-actions">
+          <button class="modal-btn cancel" onclick="closeModal('nudgeModal')">Cancel</button>
+          <button class="modal-btn primary" onclick="saveNudgePat()">Save &amp; Continue &#8594;</button>
         </div>
       </div>
-      <div class="modal-actions">
-        <button class="modal-btn cancel" onclick="closeModal('nudgeModal')">Close</button>
+
+      <!-- Step 2: Email input -->
+      <div id="nudgeGhView" style="display:none;">
+        <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:10px;">
+          Sending alert for: <strong style="color:var(--text-primary);" id="nudgeGhPersonLabel"></strong>
+        </div>
+        <input class="modal-input" id="nudgeGhEmailInput" type="email"
+          placeholder="recipient@elm.sa (leave blank = PM copy only)"
+          onkeydown="if(event.key==='Enter')submitNudge()">
+        <div style="font-size:0.75rem;color:var(--text-muted);margin-top:6px;display:flex;justify-content:space-between;align-items:center;">
+          <span>Triggers GitHub Actions cloud — arrives in ~60s</span>
+          <button onclick="clearNudgePat()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:0.75rem;padding:0;">&#128274; Reset token</button>
+        </div>
+        <div class="modal-actions">
+          <button class="modal-btn cancel" onclick="closeModal('nudgeModal')">Cancel</button>
+          <button class="modal-btn primary" onclick="submitNudge()">&#9729; Send via Cloud</button>
+        </div>
       </div>
+
     </div>
   </div>
 </div>
@@ -2061,6 +2083,28 @@ function submitSendReport() {
 // ============================================================
 // NUDGE ALERT MODAL
 // ============================================================
+const GH_NUDGE_WORKFLOW = 'send-nudge.yml';
+
+function saveNudgePat() {
+  const t = document.getElementById('nudgePatInput').value.trim();
+  if (!t) { showToast('Please paste your GitHub token', 'err'); return; }
+  localStorage.setItem('gh_pat', t);   // same key as Send Report — shared token
+  showNudgeGhView();
+}
+function clearNudgePat() {
+  localStorage.removeItem('gh_pat');
+  closeModal('nudgeModal');
+  showToast('Token cleared.', 'ok');
+}
+function showNudgeGhView() {
+  const person = document.getElementById('nudgePersonName').value;
+  document.getElementById('nudgePatSetup').style.display = 'none';
+  document.getElementById('nudgeGhView').style.display   = '';
+  document.getElementById('nudgeGhPersonLabel').textContent = person;
+  document.getElementById('nudgeGhEmailInput').value = '';
+  setTimeout(() => document.getElementById('nudgeGhEmailInput').focus(), 100);
+}
+
 function openNudgeModal(personName) {
   document.getElementById('nudgePersonName').value = personName;
   document.getElementById('nudgeModalSub').textContent =
@@ -2076,29 +2120,66 @@ function openNudgeModal(personName) {
   } else {
     local.style.display  = 'none';
     remote.style.display = '';
-    const el = document.getElementById('nudgeRemoteName');
-    if (el) el.textContent = personName;
+    if (getGhPat()) {
+      showNudgeGhView();
+    } else {
+      document.getElementById('nudgePatSetup').style.display = '';
+      document.getElementById('nudgeGhView').style.display   = 'none';
+      setTimeout(() => document.getElementById('nudgePatInput').focus(), 100);
+    }
   }
   document.getElementById('nudgeModal').classList.add('show');
 }
 
 function submitNudge() {
   const person = document.getElementById('nudgePersonName').value;
-  const email  = document.getElementById('nudgeEmailInput').value.trim();
-  closeModal('nudgeModal');
-  showToast('Sending nudge alert for ' + person + '…', 'ok');
 
-  fetch('/api/nudge', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ person, email: email || undefined })
-  })
-  .then(r => r.json())
-  .then(d => {
-    if (d.ok) showToast('✓ Alert sent' + (email ? ' to ' + email : ' to PM inbox'), 'ok');
-    else showToast('Failed: ' + (d.error || 'Unknown'), 'err');
-  })
-  .catch(() => showToast('Failed to reach local server', 'err'));
+  if (isLocalServer) {
+    // ── Local server path ──
+    const email = document.getElementById('nudgeEmailInput').value.trim();
+    closeModal('nudgeModal');
+    showToast('Sending nudge alert for ' + person + '…', 'ok');
+    fetch('/api/nudge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ person, email: email || undefined })
+    })
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) showToast('✓ Alert sent' + (email ? ' to ' + email : ' to PM inbox'), 'ok');
+      else showToast('Failed: ' + (d.error || 'Unknown'), 'err');
+    })
+    .catch(() => showToast('Failed to reach local server', 'err'));
+
+  } else {
+    // ── GitHub Actions path ──
+    const email = document.getElementById('nudgeGhEmailInput').value.trim();
+    const pat   = getGhPat();
+    if (!pat) { showToast('No GitHub token saved', 'err'); return; }
+    closeModal('nudgeModal');
+    showToast('☁ Triggering nudge for ' + person + '…', 'ok');
+
+    fetch(`https://api.github.com/repos/${GH_REPO}/actions/workflows/${GH_NUDGE_WORKFLOW}/dispatches`, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + pat,
+        'Accept': 'application/vnd.github+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ ref: 'main', inputs: { person: person, email: email } })
+    })
+    .then(r => {
+      if (r.status === 204) {
+        showToast('✓ Alert queued for ' + person + (email ? ' → ' + email : '') + ' — arrives in ~60s', 'ok');
+      } else if (r.status === 401) {
+        localStorage.removeItem('gh_pat');
+        showToast('GitHub token expired — click Send Alert to reconnect', 'err');
+      } else {
+        showToast('GitHub API error ' + r.status, 'err');
+      }
+    })
+    .catch(() => showToast('Failed to reach GitHub API', 'err'));
+  }
 }
 
 
