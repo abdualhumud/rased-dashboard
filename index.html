@@ -883,10 +883,13 @@ body {
     <div class="nav-title">Rased V2 <span>— Jira Intelligence Dashboard</span></div>
   </div>
   <div class="nav-meta">
-    <div class="sprint-badge">RNT Sprint 19 | Day 10/23</div>
+    <div class="sprint-badge" id="sprintBadge">RNT Sprint 19 | Day --/--</div>
     <div class="last-updated" id="navTimestamp">Last updated: --</div>
     <button class="btn-send-report" onclick="openSendReportModal()">
       &#128228; Send Report
+    </button>
+    <button class="btn-send-report" id="btnTargetedReport" style="display:none;background:rgba(99,102,241,.12);color:var(--accent-light);border-color:var(--accent);" onclick="openTargetedReportModal()">
+      &#127919; Send to <span id="targetedPersonName"></span>
     </button>
     <button class="btn-refresh" id="btnRefresh" onclick="refreshDashboard()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
@@ -1230,6 +1233,26 @@ body {
   </div>
 </div>
 
+<!-- ===== TARGETED REPORT MODAL ===== -->
+<div class="modal-backdrop" id="targetedModal">
+  <div class="modal-dialog">
+    <div class="modal-title">&#127919; Send Targeted Report</div>
+    <div class="modal-sub" id="targetedModalSub">Send a personal task update to this team member.</div>
+    <input type="hidden" id="targetedPerson">
+    <div style="background:var(--bg-tertiary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;">
+      <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;">Recipient</div>
+      <div id="targetedAutoEmail" style="font-size:0.9rem;color:var(--accent-light);font-weight:600;"></div>
+    </div>
+    <input class="modal-input" id="targetedCustomEmail" type="email"
+      placeholder="Override: send to a different email instead (optional)"
+      onkeydown="if(event.key==='Enter')submitTargetedReport()">
+    <div class="modal-actions">
+      <button class="modal-btn cancel" onclick="closeModal('targetedModal')">Cancel</button>
+      <button class="modal-btn primary" onclick="submitTargetedReport()">&#9729; Send Personal Report</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== TOAST ===== -->
 <div class="toast" id="toastNotif"></div>
 
@@ -1330,6 +1353,7 @@ const DASHBOARD_DATA = {
 // INITIALIZATION
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
+  updateSprintHeader();
   updateTimestamps();
   renderPersonFilter();
   renderRiskTable();
@@ -1346,6 +1370,35 @@ document.addEventListener('DOMContentLoaded', () => {
 // ============================================================
 // TIMESTAMPS
 // ============================================================
+// ============================================================
+// SPRINT HEADER SYNC (dynamic Day X/Y calculation)
+// ============================================================
+function updateSprintHeader() {
+  const sprint = DASHBOARD_DATA.sprint;
+  if (!sprint || !sprint.startDate || !sprint.endDate) return;
+
+  const now   = new Date();
+  const start = new Date(sprint.startDate);
+  const end   = new Date(sprint.endDate);
+
+  now.setHours(0,0,0,0);
+  start.setHours(0,0,0,0);
+  end.setHours(0,0,0,0);
+
+  const totalDays  = Math.max(1, Math.round((end - start) / 86400000));
+  const dayElapsed = Math.max(0, Math.min(totalDays, Math.round((now - start) / 86400000)));
+  const remaining  = Math.max(0, totalDays - dayElapsed);
+
+  // Update badge
+  const badge = document.getElementById('sprintBadge');
+  if (badge) badge.textContent = `${sprint.name} | Day ${dayElapsed}/${totalDays}`;
+
+  // Sync KPI data
+  DASHBOARD_DATA.kpis.daysElapsed = dayElapsed;
+  DASHBOARD_DATA.kpis.daysRemaining = remaining;
+  DASHBOARD_DATA.kpis.timeElapsedPercent = Math.round((dayElapsed / totalDays) * 100);
+}
+
 function updateTimestamps() {
   const now = new Date();
   const formatted = now.toLocaleString('en-US', {
@@ -1926,6 +1979,78 @@ function filterByPerson(name, btn) {
   const label = name === 'all' ? 'All Team' : name;
   document.getElementById('riskCount').textContent =
     DASHBOARD_DATA.riskItems.filter(i => name === 'all' || i.assignee === name).length + ' items';
+
+  // Show/hide targeted report button
+  const targetBtn = document.getElementById('btnTargetedReport');
+  const targetName = document.getElementById('targetedPersonName');
+  if (targetBtn) {
+    if (name !== 'all') {
+      targetBtn.style.display = '';
+      targetName.textContent = name.split(' ')[0]; // First name only
+    } else {
+      targetBtn.style.display = 'none';
+    }
+  }
+}
+
+// ============================================================
+// TARGETED REPORT DISPATCHER
+// ============================================================
+function openTargetedReportModal() {
+  const person = currentPersonFilter;
+  if (!person || person === 'all') return;
+
+  const email = teamEmails[person] || '';
+  document.getElementById('targetedPerson').value = person;
+  document.getElementById('targetedModalSub').textContent =
+    `Send "${person}" their personal task update with pending/overdue items.`;
+  document.getElementById('targetedAutoEmail').textContent =
+    email ? `${person} → ${email}` : `${person} (no email mapped — enter below)`;
+  document.getElementById('targetedCustomEmail').value = '';
+  document.getElementById('targetedModal').classList.add('show');
+}
+
+function submitTargetedReport() {
+  const person = document.getElementById('targetedPerson').value;
+  const customEmail = document.getElementById('targetedCustomEmail').value.trim();
+  const autoEmail = teamEmails[person] || '';
+  const email = customEmail || autoEmail;
+
+  if (!email || !email.includes('@')) {
+    showToast('No email address found. Enter one in the override field.', 'err');
+    return;
+  }
+
+  const pat = getGhPat();
+  if (!pat) {
+    closeModal('targetedModal');
+    showToast('Set up your GitHub token first via Send Report button', 'err');
+    return;
+  }
+
+  closeModal('targetedModal');
+  showToast(`Sending personal report for ${person} to ${email}...`, 'ok');
+
+  fetch(`https://api.github.com/repos/${GH_REPO}/actions/workflows/${GH_NUDGE_WORKFLOW}/dispatches`, {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + pat,
+      'Accept': 'application/vnd.github+json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ ref: 'main', inputs: { person: person, email: email } })
+  })
+  .then(r => {
+    if (r.status === 204) {
+      showToast(`Personal Task Update for ${person.split(' ')[0]} queued — arrives in ~60s`, 'ok');
+    } else if (r.status === 401) {
+      localStorage.removeItem('gh_pat');
+      showToast('GitHub token expired — click Send Report to reconnect', 'err');
+    } else {
+      showToast('GitHub API error ' + r.status, 'err');
+    }
+  })
+  .catch(() => showToast('Failed to reach GitHub API', 'err'));
 }
 
 
@@ -1982,6 +2107,25 @@ const isLocalServer = window.location.hostname === 'localhost' ||
 
 const GH_REPO = 'abdualhumud/rased-dashboard';
 const GH_WORKFLOW = 'daily-report.yml';
+const GH_NUDGE_WORKFLOW = 'send-nudge.yml';
+
+// ── Team email mapping ──────────────────────────────────────────────────
+const teamEmails = {
+  "Abdulrahman Alhumud": "abdualhumud@elm.sa",
+  "ASHWAQ ALYAHIWI": "ashwaq@elm.sa",
+  "Hossam Haggag": "hossam@elm.sa",
+  "Ziad Mohamed": "ziad@elm.sa",
+  "Amani Alqahtani": "amani@elm.sa",
+  "Salem Alshmrani": "salem@elm.sa",
+  "Tamer Said": "tamer@elm.sa",
+  "Bashayr Almutairi": "bashayr@elm.sa",
+  "Mahmoud Adel": "mahmoud@elm.sa",
+  "Hamed Alsaedi": "hamed@elm.sa",
+  "Tarek Ahmed": "tarek@elm.sa",
+  "Ahmed Almutairi": "ahmed.m@elm.sa",
+  "Ahmed Hassan": "ahmed.h@elm.sa",
+  "Hamad Alharbi": "hamad@elm.sa"
+};
 
 function getGhPat()   { return localStorage.getItem('gh_pat') || ''; }
 function saveGhPat()  {
