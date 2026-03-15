@@ -1,0 +1,51 @@
+# ============================================================
+#  Jira Intelligence Agent — On-Demand Nudge Alert
+#  Triggered from the dashboard "Send Alert" button or manually
+#  from the GitHub Actions tab.
+#  NO local machine needed — runs 100% in GitHub's cloud.
+# ============================================================
+
+name: Send Nudge Alert
+
+on:
+  workflow_dispatch:
+    inputs:
+      person:
+        description: 'Team member name (partial match OK, e.g. "Ziad" or "ASHWAQ")'
+        required: true
+      email:
+        description: 'Send alert to this email (leave blank to send to PM only)'
+        required: false
+        default: ''
+
+jobs:
+  send-nudge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Send nudge alert
+        env:
+          JIRA_BASE_URL:  "https://rased.atlassian.net"
+          JIRA_EMAIL:     ${{ secrets.JIRA_EMAIL }}
+          JIRA_TOKEN:     ${{ secrets.JIRA_TOKEN }}
+          JIRA_BOARD_ID:  "112"
+          PM_EMAIL:       ${{ secrets.REPORT_EMAIL }}
+          NUDGE_PERSON:   ${{ inputs.person }}
+          NUDGE_EMAIL:    ${{ inputs.email }}
+          SMTP_USER:      ${{ secrets.SMTP_USER }}
+          SMTP_PASS:      ${{ secrets.SMTP_PASS }}
+          SMTP_HOST:      ${{ secrets.SMTP_HOST }}
+          SMTP_PORT:      ${{ secrets.SMTP_PORT }}
+        run: python3 scripts/send_nudge.py
+
+      - name: Upload nudge HTML artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nudge-${{ inputs.person }}-${{ github.run_id }}
+          path: nudge_report.html
+          retention-days: 7
