@@ -12,8 +12,13 @@ on:
     # 06:00 UTC = 09:00 AM Riyadh (AST, UTC+3) — Sun through Thu
     - cron: '0 6 * * 0,1,2,3,4'
 
-  # Manual trigger — click "Run workflow" from the Actions tab any time
+  # Manual trigger — click "Run workflow" OR triggered from dashboard button
   workflow_dispatch:
+    inputs:
+      email:
+        description: 'Send report to this email (leave blank to use REPORT_EMAIL secret)'
+        required: false
+        default: ''
 
 jobs:
   send-daily-report:
@@ -28,15 +33,16 @@ jobs:
       # ── Run the Python report generator & email sender ───────────────
       - name: Generate report and send email
         env:
-          JIRA_BASE_URL:  "https://rased.atlassian.net"
-          JIRA_EMAIL:     ${{ secrets.JIRA_EMAIL }}
-          JIRA_TOKEN:     ${{ secrets.JIRA_TOKEN }}
-          JIRA_BOARD_ID:  "112"
-          REPORT_EMAIL:   ${{ secrets.REPORT_EMAIL }}
-          SMTP_USER:      ${{ secrets.SMTP_USER }}
-          SMTP_PASS:      ${{ secrets.SMTP_PASS }}
-          SMTP_HOST:      ${{ secrets.SMTP_HOST }}
-          SMTP_PORT:      ${{ secrets.SMTP_PORT }}
+          JIRA_BASE_URL:    "https://rased.atlassian.net"
+          JIRA_EMAIL:       ${{ secrets.JIRA_EMAIL }}
+          JIRA_TOKEN:       ${{ secrets.JIRA_TOKEN }}
+          JIRA_BOARD_ID:    "112"
+          REPORT_EMAIL:     ${{ secrets.REPORT_EMAIL }}
+          OVERRIDE_EMAIL:   ${{ inputs.email }}
+          SMTP_USER:        ${{ secrets.SMTP_USER }}
+          SMTP_PASS:        ${{ secrets.SMTP_PASS }}
+          SMTP_HOST:        ${{ secrets.SMTP_HOST }}
+          SMTP_PORT:        ${{ secrets.SMTP_PORT }}
         run: python3 scripts/daily_report.py
 
       # ── Upload generated HTML as a downloadable artifact (7-day keep) ─
