@@ -1,0 +1,34 @@
+{
+  "schedules": [
+    {
+      "id": "daily-pm-full",
+      "recipientName": "Abdulrahman",
+      "recipientEmail": "abdualhumud@elm.sa",
+      "scope": "full",
+      "frequency": "daily",
+      "days": ["sun", "mon", "tue", "wed", "thu"],
+      "condition": "always",
+      "enabled": true
+    },
+    {
+      "id": "daily-ashwaq-self",
+      "recipientName": "ASHWAQ ALYAHIWI",
+      "recipientEmail": "ashwaq@elm.sa",
+      "scope": "self",
+      "frequency": "daily",
+      "days": ["sun", "mon", "tue", "wed", "thu"],
+      "condition": "has-overdue",
+      "enabled": false
+    },
+    {
+      "id": "weekly-tamer-self",
+      "recipientName": "Tamer Said",
+      "recipientEmail": "tamer@elm.sa",
+      "scope": "self",
+      "frequency": "weekly",
+      "days": ["sun"],
+      "condition": "always",
+      "enabled": false
+    }
+  ]
+}

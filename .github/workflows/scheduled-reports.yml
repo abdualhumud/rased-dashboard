@@ -1,0 +1,51 @@
+# ============================================================
+#  Jira Intelligence Agent - Automation Scheduler
+#  Reads scheduler-config.json and fires the appropriate
+#  reports for each enabled schedule.
+#
+#  Runs daily at 09:00 AM Riyadh (UTC+3) Sun-Thu
+#  Edit scheduler-config.json to add/remove/configure schedules
+# ============================================================
+
+name: Scheduled Reports
+
+on:
+  schedule:
+    # 06:00 UTC = 09:00 AM Riyadh (AST, UTC+3) — Sun through Thu
+    - cron: '0 6 * * 0,1,2,3,4'
+
+  # Manual trigger for testing
+  workflow_dispatch:
+
+jobs:
+  run-schedules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run scheduled reports
+        env:
+          JIRA_BASE_URL:  "https://rased.atlassian.net"
+          JIRA_EMAIL:     ${{ secrets.JIRA_EMAIL }}
+          JIRA_TOKEN:     ${{ secrets.JIRA_TOKEN }}
+          JIRA_BOARD_ID:  "112"
+          REPORT_EMAIL:   ${{ secrets.REPORT_EMAIL }}
+          SMTP_USER:      ${{ secrets.SMTP_USER }}
+          SMTP_PASS:      ${{ secrets.SMTP_PASS }}
+          SMTP_HOST:      ${{ secrets.SMTP_HOST }}
+          SMTP_PORT:      ${{ secrets.SMTP_PORT }}
+        run: python3 scripts/scheduled_reports.py
+
+      - name: Upload report artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scheduled-reports-${{ github.run_id }}
+          path: |
+            email_report.html
+            nudge_report.html
+          retention-days: 7
+          if-no-files-found: ignore
