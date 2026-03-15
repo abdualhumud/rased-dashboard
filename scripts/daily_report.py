@@ -8,7 +8,7 @@ Fetches live sprint data, generates HTML email with Deadline column, sends via S
 import os, json, base64, smtplib, sys
 from datetime import datetime, timezone, timedelta
 from urllib.request import urlopen, Request
-from urllib.error import URLError
+from urllib.error import URLError, HTTPError
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -31,13 +31,30 @@ now = datetime.now(RIYADH_TZ)
 creds   = base64.b64encode(f"{JIRA_EMAIL}:{JIRA_TOKEN}".encode()).decode()
 HEADERS = {"Authorization": f"Basic {creds}", "Accept": "application/json"}
 
+# ── Startup diagnostics (values masked) ───────────────────────────────────────
+print(f"CONFIG: JIRA_EMAIL={JIRA_EMAIL}")
+print(f"CONFIG: JIRA_TOKEN={'*' * 8 + JIRA_TOKEN[-6:] if JIRA_TOKEN else '(empty!)'}")
+print(f"CONFIG: REPORT_TO={REPORT_TO}")
+print(f"CONFIG: SMTP_USER={SMTP_USER}")
+print(f"CONFIG: SMTP_HOST={SMTP_HOST}:{SMTP_PORT}")
+
 def jira_get(path):
     req = Request(f"{JIRA_BASE}{path}", headers=HEADERS)
     try:
         with urlopen(req, timeout=30) as r:
             return json.loads(r.read())
+    except HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")[:500]
+        print(f"JIRA HTTP ERROR {e.code} {e.reason}")
+        print(f"Response body: {body}")
+        if e.code == 401:
+            print("HINT: Jira token is invalid or expired. Regenerate at: https://id.atlassian.com/manage-profile/security/api-tokens")
+        elif e.code == 403:
+            print("HINT: Jira token lacks permission to read this board/project.")
+        sys.exit(1)
     except URLError as e:
-        print(f"ERROR: {e}"); sys.exit(1)
+        print(f"JIRA CONNECTION ERROR: {e.reason}")
+        sys.exit(1)
 
 # ── 1. ACTIVE SPRINT ──────────────────────────────────────────────────────────
 print("Fetching active sprint...")
@@ -277,11 +294,20 @@ msg["To"]      = REPORT_TO
 msg.attach(MIMEText(html, "html"))
 
 print(f"Sending to {REPORT_TO} via {SMTP_HOST}:{SMTP_PORT}...")
-with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as s:
-    s.starttls()
-    s.login(SMTP_USER, SMTP_PASS)
-    s.sendmail(SMTP_USER, REPORT_TO, msg.as_string())
-print("EMAIL SENT successfully!")
+try:
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as s:
+        s.starttls()
+        s.login(SMTP_USER, SMTP_PASS)
+        s.sendmail(SMTP_USER, REPORT_TO, msg.as_string())
+    print("EMAIL SENT successfully!")
+except smtplib.SMTPAuthenticationError as e:
+    print(f"SMTP AUTH ERROR: {e}")
+    print("HINT: SMTP_PASS must be a Gmail App Password (not your regular Gmail password).")
+    print("Generate one at: https://myaccount.google.com/apppasswords")
+    sys.exit(1)
+except smtplib.SMTPException as e:
+    print(f"SMTP ERROR: {e}")
+    sys.exit(1)
 
 # Save HTML artifact for debugging
 with open("email_report.html", "w", encoding="utf-8") as f:
