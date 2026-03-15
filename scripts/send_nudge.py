@@ -15,12 +15,12 @@ from email.mime.multipart import MIMEMultipart
 
 # ── CONFIG (GitHub Secrets injected as env vars) ──────────────────────────────
 JIRA_BASE   = os.environ.get("JIRA_BASE_URL", "https://rased.atlassian.net")
-JIRA_EMAIL  = os.environ["JIRA_EMAIL"]
-JIRA_TOKEN  = os.environ["JIRA_TOKEN"]
+JIRA_EMAIL  = os.environ.get("JIRA_EMAIL", "")
+JIRA_TOKEN  = os.environ.get("JIRA_TOKEN", "")
 BOARD_ID    = os.environ.get("JIRA_BOARD_ID", "112")
 PM_EMAIL    = os.environ.get("PM_EMAIL", "abdualhumud@elm.sa")
 
-ASSIGNEE    = os.environ["NUDGE_PERSON"].strip()   # required
+ASSIGNEE    = os.environ.get("NUDGE_PERSON", "").strip()
 RECIPIENT   = os.environ.get("NUDGE_EMAIL", "").strip()
 TO_EMAIL    = RECIPIENT if RECIPIENT else PM_EMAIL   # default: PM gets preview copy
 
@@ -28,6 +28,14 @@ SMTP_USER   = os.environ.get("SMTP_USER", "").strip()
 SMTP_PASS   = os.environ.get("SMTP_PASS", "").strip()
 SMTP_HOST   = os.environ.get("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT   = int(os.environ.get("SMTP_PORT", "587"))
+
+# ── Validate required config ────────────────────────────────────────────────
+if not JIRA_EMAIL or not JIRA_TOKEN:
+    print("ERROR: JIRA_EMAIL and JIRA_TOKEN secrets are required.")
+    sys.exit(1)
+if not ASSIGNEE:
+    print("ERROR: NUDGE_PERSON input is required (team member name).")
+    sys.exit(1)
 
 # Riyadh = UTC+3
 RIYADH_TZ = timezone(timedelta(hours=3))
@@ -64,8 +72,18 @@ def parse_dt(s):
 
 # ── STEP 1: Active sprint ─────────────────────────────────────────────────────
 print(f"Fetching active sprint from board {BOARD_ID}…")
-sprint_data = jira_get(f"/rest/agile/1.0/board/{BOARD_ID}/sprint?state=active")
-sprint      = sprint_data["values"][0]
+try:
+    sprint_data = jira_get(f"/rest/agile/1.0/board/{BOARD_ID}/sprint?state=active")
+except Exception as e:
+    print(f"ERROR: Failed to fetch sprints from Jira: {e}")
+    sys.exit(1)
+
+sprints = sprint_data.get("values", [])
+if not sprints:
+    print("ERROR: No active sprint found on this board.")
+    sys.exit(1)
+
+sprint      = sprints[0]
 sprint_id   = sprint["id"]
 sprint_name = sprint["name"]
 sprint_end  = parse_dt(sprint.get("endDate", ""))
@@ -86,7 +104,11 @@ search = ASSIGNEE.lower()
 my_issues = []
 for issue in all_issues:
     name = (issue["fields"].get("assignee") or {}).get("displayName", "")
-    if search in name.lower() or name.split()[0].lower() in search:
+    if not name:
+        continue
+    name_lower = name.lower()
+    first_name_lower = name.split()[0].lower() if name.split() else ""
+    if search in name_lower or first_name_lower in search:
         my_issues.append(issue)
 
 print(f"Issues for '{ASSIGNEE}': {len(my_issues)}")
