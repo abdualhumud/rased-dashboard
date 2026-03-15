@@ -7,9 +7,10 @@ and runs the appropriate report (full sprint or per-person nudge).
 Runs via GitHub Actions cron (daily at 09:00 AM Riyadh Sun-Thu).
 """
 
-import os, json, sys, subprocess
+import os, json, sys, subprocess, base64
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from urllib.request import urlopen, Request
 
 RIYADH_TZ = timezone(timedelta(hours=3))
 now = datetime.now(RIYADH_TZ)
@@ -35,6 +36,47 @@ with open(config_path) as f:
 
 schedules = config.get("schedules", [])
 print(f"\n  Found {len(schedules)} schedule(s)\n")
+
+# ── Condition evaluation helpers ─────────────────────────────────────────────
+def _check_has_overdue(person_name):
+    """Quick Jira check: does this person have any overdue issues in active sprint?"""
+    try:
+        jira_base = os.environ.get("JIRA_BASE_URL", "https://rased.atlassian.net")
+        jira_email = os.environ.get("JIRA_EMAIL", "")
+        jira_token = os.environ.get("JIRA_TOKEN", "")
+        board_id = os.environ.get("JIRA_BOARD_ID", "112")
+        if not jira_email or not jira_token:
+            print("        WARN: No Jira creds for condition check, assuming true")
+            return True
+        creds = base64.b64encode(f"{jira_email}:{jira_token}".encode()).decode()
+        headers = {"Authorization": f"Basic {creds}", "Accept": "application/json"}
+        # Get active sprint
+        req = Request(f"{jira_base}/rest/agile/1.0/board/{board_id}/sprint?state=active", headers=headers)
+        with urlopen(req, timeout=15) as r:
+            sprints = json.loads(r.read()).get("values", [])
+        if not sprints:
+            return False
+        sid = sprints[0]["id"]
+        # Check for overdue issues assigned to this person
+        today = now.strftime("%Y-%m-%d")
+        jql = f'sprint={sid} AND assignee="{person_name}" AND duedate < "{today}" AND status not in (Done,"Released Into Live",Closed,Resolved)'
+        from urllib.parse import quote
+        req = Request(f"{jira_base}/rest/api/3/search?jql={quote(jql)}&maxResults=1&fields=key", headers=headers)
+        with urlopen(req, timeout=15) as r:
+            result = json.loads(r.read())
+        return result.get("total", 0) > 0
+    except Exception as e:
+        print(f"        WARN: Condition check failed ({e}), assuming true")
+        return True
+
+def evaluate_condition(condition, person_name):
+    """Evaluate schedule condition. Returns True if schedule should fire."""
+    if condition == "always":
+        return True
+    if condition == "has-overdue":
+        return _check_has_overdue(person_name)
+    print(f"        WARN: Unknown condition '{condition}', assuming true")
+    return True
 
 # ── Process each schedule ────────────────────────────────────────────────────
 fired = 0
@@ -70,6 +112,13 @@ for sched in schedules:
         results.append({"id": sid, "status": "skipped", "reason": "no email"})
         continue
 
+    # ── Evaluate condition ─────────────────────────────────────────────
+    if not evaluate_condition(condition, name):
+        print(f"  SKIP  {sid} (condition '{condition}' not met for {name})")
+        skipped += 1
+        results.append({"id": sid, "status": "skipped", "reason": f"condition={condition}"})
+        continue
+
     # ── Fire the schedule ────────────────────────────────────────────────
     print(f"\n  FIRE  {sid}")
     print(f"        To: {email} | Scope: {scope} | Condition: {condition}")
@@ -77,6 +126,9 @@ for sched in schedules:
     # Build environment with overrides
     env = {**os.environ}
     env["OVERRIDE_EMAIL"] = email
+
+    # Use unique artifact filenames per schedule to avoid collisions
+    env["ARTIFACT_SUFFIX"] = f"_{sid}"
 
     try:
         if scope == "full":

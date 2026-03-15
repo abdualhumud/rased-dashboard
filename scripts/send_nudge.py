@@ -50,6 +50,7 @@ HEADERS = {
 
 DONE_STATUSES    = {"Done", "Released Into Live", "Closed", "Resolved"}
 BLOCKED_STATUSES = {"Blocked", "On Hold"}
+TODO_STATUSES    = {"Open", "To Do", "Backlog", "Ready To Develop", "deferred", "Not applicable"}
 
 
 def jira_get(path):
@@ -63,9 +64,7 @@ def parse_dt(s):
     if not s:
         return None
     try:
-        # Jira returns ISO8601 with timezone offset
-        s = s[:19]  # strip timezone, keep YYYY-MM-DDTHH:MM:SS
-        return datetime.strptime(s, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=RIYADH_TZ)
+        return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(RIYADH_TZ)
     except Exception:
         return None
 
@@ -94,8 +93,14 @@ print(f"Sprint: {sprint_name} | {days_left} days remaining")
 # ── STEP 2: All sprint issues ─────────────────────────────────────────────────
 print("Fetching sprint issues…")
 fields = "summary,status,assignee,priority,updated,duedate,issuetype"
-data   = jira_get(f"/rest/agile/1.0/sprint/{sprint_id}/issue?maxResults=200&fields={fields}")
-all_issues = data.get("issues", [])
+all_issues = []
+start_at = 0
+while True:
+    data = jira_get(f"/rest/agile/1.0/sprint/{sprint_id}/issue?startAt={start_at}&maxResults=200&fields={fields}")
+    all_issues.extend(data.get("issues", []))
+    if start_at + len(data.get("issues", [])) >= data.get("total", 0):
+        break
+    start_at += len(data.get("issues", []))
 print(f"Total sprint issues: {len(all_issues)}")
 
 
@@ -137,7 +142,7 @@ for issue in my_issues:
 
     if duedate_str:
         duedate_dt   = datetime.strptime(duedate_str, "%Y-%m-%d").replace(tzinfo=RIYADH_TZ)
-        deadline_lbl = duedate_dt.strftime("%b %-d, %Y")
+        deadline_lbl = duedate_dt.strftime("%b %d, %Y").replace(" 0", " ")
         days_until   = (duedate_dt - now).days
         if duedate_dt.date() < now.date():
             urgency = "OVERDUE"
@@ -166,7 +171,7 @@ for issue in my_issues:
 urgent_count = len(overdue) + len(blocked) + len(at_risk)
 total_open   = len(my_issues) - len(done)
 first_name   = ASSIGNEE.split()[0]
-date_fmt     = now.strftime("%B %-d, %Y")
+date_fmt     = now.strftime("%B %d, %Y").replace(" 0", " ")
 
 
 # ── STEP 5: Build HTML ────────────────────────────────────────────────────────
@@ -287,9 +292,11 @@ html = f"""<!DOCTYPE html>
 </body></html>"""
 
 # Save artifact
-with open("nudge_report.html", "w", encoding="utf-8") as fh:
+artifact_suffix = os.environ.get("ARTIFACT_SUFFIX", "")
+artifact_name = f"nudge_report{artifact_suffix}.html"
+with open(artifact_name, "w", encoding="utf-8") as fh:
     fh.write(html)
-print("Nudge HTML saved to nudge_report.html")
+print(f"Nudge HTML saved to {artifact_name}")
 
 
 # ── STEP 6: Send via SMTP ─────────────────────────────────────────────────────

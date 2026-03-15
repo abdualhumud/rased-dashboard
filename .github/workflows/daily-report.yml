@@ -8,11 +8,8 @@
 name: Daily Jira Sprint Report
 
 on:
-  schedule:
-    # 06:00 UTC = 09:00 AM Riyadh (AST, UTC+3) — Sun through Thu
-    - cron: '0 6 * * 0,1,2,3,4'
-
-  # Manual trigger — click "Run workflow" OR triggered from dashboard button
+  # Schedule removed — scheduled-reports.yml handles the daily cron via scheduler-config.json
+  # Keeping only manual trigger for on-demand dashboard "Send Report" button
   workflow_dispatch:
     inputs:
       email:

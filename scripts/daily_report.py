@@ -75,7 +75,14 @@ print(f"Sprint: {sprint_name} | Day {days_elapsed}/{total_days}")
 # ── 2. SPRINT ISSUES ─────────────────────────────────────────────────────────
 print("Fetching issues...")
 fields = "summary,status,assignee,priority,updated,duedate,issuetype,resolution,resolutiondate"
-issues = jira_get(f"/rest/agile/1.0/sprint/{sprint_id}/issue?maxResults=200&fields={fields}")["issues"]
+issues = []
+start_at = 0
+while True:
+    batch = jira_get(f"/rest/agile/1.0/sprint/{sprint_id}/issue?startAt={start_at}&maxResults=200&fields={fields}")
+    issues.extend(batch["issues"])
+    if start_at + len(batch["issues"]) >= batch.get("total", 0):
+        break
+    start_at += len(batch["issues"])
 total_issues = len(issues)
 print(f"Loaded {total_issues} issues")
 
@@ -294,9 +301,11 @@ msg["To"]      = REPORT_TO
 msg.attach(MIMEText(html, "html"))
 
 # Save HTML artifact for debugging (before sending, so artifact exists even if SMTP fails)
-with open("email_report.html", "w", encoding="utf-8") as f:
+artifact_suffix = os.environ.get("ARTIFACT_SUFFIX", "")
+artifact_name = f"email_report{artifact_suffix}.html"
+with open(artifact_name, "w", encoding="utf-8") as f:
     f.write(html)
-print("Saved email_report.html as artifact.")
+print(f"Saved {artifact_name} as artifact.")
 
 smtp_mode = "SSL" if SMTP_PORT == 465 else "STARTTLS"
 print(f"Sending to {REPORT_TO} via {SMTP_HOST}:{SMTP_PORT} ({smtp_mode})...")
