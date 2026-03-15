@@ -19,8 +19,8 @@ JIRA_TOKEN = os.environ["JIRA_TOKEN"]
 BOARD_ID   = os.environ.get("JIRA_BOARD_ID", "112")
 _override  = os.environ.get("OVERRIDE_EMAIL", "").strip()
 REPORT_TO  = _override if _override else os.environ["REPORT_EMAIL"]
-SMTP_USER  = os.environ["SMTP_USER"]
-SMTP_PASS  = os.environ["SMTP_PASS"]
+SMTP_USER  = os.environ.get("SMTP_USER", "").strip()
+SMTP_PASS  = os.environ.get("SMTP_PASS", "").strip()
 SMTP_HOST  = os.environ.get("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT  = int(os.environ.get("SMTP_PORT", "587"))
 
@@ -293,23 +293,37 @@ msg["From"]    = f"Jira Intelligence Agent <{SMTP_USER}>"
 msg["To"]      = REPORT_TO
 msg.attach(MIMEText(html, "html"))
 
-print(f"Sending to {REPORT_TO} via {SMTP_HOST}:{SMTP_PORT}...")
-try:
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as s:
-        s.starttls()
-        s.login(SMTP_USER, SMTP_PASS)
-        s.sendmail(SMTP_USER, REPORT_TO, msg.as_string())
-    print("EMAIL SENT successfully!")
-except smtplib.SMTPAuthenticationError as e:
-    print(f"SMTP AUTH ERROR: {e}")
-    print("HINT: SMTP_PASS must be a Gmail App Password (not your regular Gmail password).")
-    print("Generate one at: https://myaccount.google.com/apppasswords")
-    sys.exit(1)
-except smtplib.SMTPException as e:
-    print(f"SMTP ERROR: {e}")
-    sys.exit(1)
-
-# Save HTML artifact for debugging
+# Save HTML artifact for debugging (before sending, so artifact exists even if SMTP fails)
 with open("email_report.html", "w", encoding="utf-8") as f:
     f.write(html)
 print("Saved email_report.html as artifact.")
+
+smtp_mode = "SSL" if SMTP_PORT == 465 else "STARTTLS"
+print(f"Sending to {REPORT_TO} via {SMTP_HOST}:{SMTP_PORT} ({smtp_mode})...")
+print(f"  SMTP_USER={'(set)' if SMTP_USER else '(empty)'}")
+try:
+    if SMTP_PORT == 465:
+        server = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=30)
+    else:
+        server = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30)
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+    if SMTP_USER and SMTP_PASS:
+        server.login(SMTP_USER, SMTP_PASS)
+    server.sendmail(SMTP_USER or REPORT_TO, REPORT_TO, msg.as_string())
+    server.quit()
+    print("EMAIL SENT successfully!")
+except smtplib.SMTPAuthenticationError as e:
+    print(f"SMTP AUTH ERROR: {e.smtp_code} {e.smtp_error}")
+    print(f"  Host: {SMTP_HOST}:{SMTP_PORT}")
+    if "gmail" in SMTP_HOST.lower():
+        print("  HINT: Gmail requires App Password. Try Brevo (smtp-relay.brevo.com) as an alternative.")
+    sys.exit(1)
+except smtplib.SMTPException as e:
+    print(f"SMTP ERROR: {type(e).__name__}: {e}")
+    sys.exit(1)
+except OSError as e:
+    print(f"NETWORK ERROR: {e}")
+    print(f"  Could not connect to {SMTP_HOST}:{SMTP_PORT}")
+    sys.exit(1)

@@ -24,8 +24,8 @@ ASSIGNEE    = os.environ["NUDGE_PERSON"].strip()   # required
 RECIPIENT   = os.environ.get("NUDGE_EMAIL", "").strip()
 TO_EMAIL    = RECIPIENT if RECIPIENT else PM_EMAIL   # default: PM gets preview copy
 
-SMTP_USER   = os.environ["SMTP_USER"]
-SMTP_PASS   = os.environ["SMTP_PASS"]
+SMTP_USER   = os.environ.get("SMTP_USER", "").strip()
+SMTP_PASS   = os.environ.get("SMTP_PASS", "").strip()
 SMTP_HOST   = os.environ.get("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT   = int(os.environ.get("SMTP_PORT", "587"))
 
@@ -271,22 +271,39 @@ print("Nudge HTML saved to nudge_report.html")
 
 
 # ── STEP 6: Send via SMTP ─────────────────────────────────────────────────────
-subject = f"[Jira Alert] {ASSIGNEE} — {urgent_count} Urgent Items | {sprint_name} | {days_left} days left"
+first_name = ASSIGNEE.split()[0] if ASSIGNEE else ASSIGNEE
+subject = f"Personal Task Update: {first_name} — {urgent_count} Urgent Items | {sprint_name} | {days_left} days left"
 
 msg = MIMEMultipart("alternative")
 msg["Subject"] = subject
-msg["From"]    = SMTP_USER
+msg["From"]    = f"Jira Intelligence Agent <{SMTP_USER}>" if SMTP_USER else TO_EMAIL
 msg["To"]      = TO_EMAIL
 msg["CC"]      = PM_EMAIL
 msg.attach(MIMEText(html, "html"))
 
 recipients = list({TO_EMAIL, PM_EMAIL})  # deduplicate
 
-print(f"Sending nudge to: {TO_EMAIL} (CC: {PM_EMAIL})…")
-with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-    server.ehlo()
-    server.starttls()
-    server.login(SMTP_USER, SMTP_PASS)
-    server.sendmail(SMTP_USER, recipients, msg.as_string())
-
-print(f"✓ Nudge sent for {ASSIGNEE} ({urgent_count} urgent items)")
+smtp_mode = "SSL" if SMTP_PORT == 465 else "STARTTLS"
+print(f"Sending nudge to: {TO_EMAIL} (CC: {PM_EMAIL}) via {SMTP_HOST}:{SMTP_PORT} ({smtp_mode})...")
+try:
+    if SMTP_PORT == 465:
+        server = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=30)
+    else:
+        server = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30)
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+    if SMTP_USER and SMTP_PASS:
+        server.login(SMTP_USER, SMTP_PASS)
+    server.sendmail(SMTP_USER or TO_EMAIL, recipients, msg.as_string())
+    server.quit()
+    print(f"EMAIL SENT for {ASSIGNEE} ({urgent_count} urgent items)")
+except smtplib.SMTPAuthenticationError as e:
+    print(f"SMTP AUTH ERROR: {e.smtp_code} {e.smtp_error}")
+    sys.exit(1)
+except smtplib.SMTPException as e:
+    print(f"SMTP ERROR: {type(e).__name__}: {e}")
+    sys.exit(1)
+except OSError as e:
+    print(f"NETWORK ERROR: Could not connect to {SMTP_HOST}:{SMTP_PORT}: {e}")
+    sys.exit(1)
