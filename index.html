@@ -1152,7 +1152,7 @@ body {
       <!-- Step 2: Email input (shown after PAT saved) -->
       <div id="reportGhView" style="display:none;">
         <div class="modal-sub">Triggers a GitHub Actions run — email arrives in ~60 seconds. &#9729;</div>
-        <input class="modal-input" id="reportEmailInput" type="email" placeholder="recipient@email.com"
+        <input class="modal-input" id="reportGhEmailInput" type="email" placeholder="recipient@email.com"
           onkeydown="if(event.key==='Enter')submitSendReport()">
         <div style="font-size:0.75rem;color:var(--text-muted);margin-top:6px;display:flex;justify-content:space-between;align-items:center;">
           <span>Sent via GitHub Actions cloud (no machine needed)</span>
@@ -1977,8 +1977,8 @@ function clearGhPat() {
 function showRemoteEmailView() {
   document.getElementById('reportPatSetup').style.display = 'none';
   document.getElementById('reportGhView').style.display   = '';
-  document.getElementById('reportEmailInput').value = '';
-  setTimeout(() => document.getElementById('reportEmailInput').focus(), 100);
+  document.getElementById('reportGhEmailInput').value = '';
+  setTimeout(() => document.getElementById('reportGhEmailInput').focus(), 100);
 }
 
 // ============================================================
@@ -2007,7 +2007,8 @@ function openSendReportModal() {
 }
 
 function submitSendReport() {
-  const email = document.getElementById('reportEmailInput').value.trim();
+  const inputId = isLocalServer ? 'reportEmailInput' : 'reportGhEmailInput';
+  const email = document.getElementById(inputId).value.trim();
   if (!email || !email.includes('@')) { showToast('Please enter a valid email address', 'err'); return; }
 
   if (isLocalServer) {
